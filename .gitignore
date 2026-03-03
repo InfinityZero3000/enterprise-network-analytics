@@ -1,0 +1,135 @@
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.*
+!.env.example
+
+# ========================
+# Jupyter Notebooks
+# ========================
+notebooks/.ipynb_checkpoints/
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ========================
+# PySpark / Delta Lake
+# ========================
+spark-warehouse/
+derby.log
+metastore_db/
+*.parquet
+*.delta
+_delta_log/
+*.crc
+*.snappy.parquet
+
+# ========================
+# Data files
+# ========================
+data/raw/companies/*
+data/raw/relationships/*
+data/raw/transactions/*
+!data/raw/companies/.gitkeep
+!data/raw/relationships/.gitkeep
+!data/raw/transactions/.gitkeep
+*.csv
+*.json.gz
+*.avro
+*.orc
+
+# ========================
+# Logs
+# ========================
+logs/
+*.log
+*.out
+
+# ========================
+# Docker
+# ========================
+.docker/
+
+# ========================
+# Neo4j
+# ========================
+neo4j/data/
+neo4j/logs/
+neo4j/import/
+neo4j/plugins/
+
+# ========================
+# Kafka / Zookeeper
+# ========================
+kafka-data/
+zookeeper-data/
+
+# ========================
+# MinIO
+# ========================
+minio-data/
+
+# ========================
+# Airflow
+# ========================
+airflow/logs/
+airflow/dags/__pycache__/
+airflow.db
+airflow.cfg
+airflow_vars.json
+
+# ========================
+# Testing & Coverage
+# ========================
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+nosetests.xml
+test-results/
+
+# ========================
+# IDE & OS
+# ========================
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ========================
+# Secrets / Credentials
+# ========================
+*.pem
+*.key
+*.cert
+*.crt
+secrets/
+credentials/
