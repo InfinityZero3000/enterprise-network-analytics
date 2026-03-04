@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
@@ -80,7 +78,7 @@ services:
           memory: 3.5G
 
   spark-master:
-    image: bitnami/spark:3.5
+    image: bitnami/spark:3
     container_name: ena-spark-master
     environment:
       - SPARK_MODE=master
@@ -96,7 +94,7 @@ services:
           memory: 512M
 
   spark-worker:
-    image: bitnami/spark:3.5
+    image: bitnami/spark:3
     container_name: ena-spark-worker
     depends_on:
       - spark-master
