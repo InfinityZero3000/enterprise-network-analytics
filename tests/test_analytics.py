@@ -29,7 +29,7 @@ class TestRuleBasedFraudDetector:
         alerts = detector.run_all_rules()
         assert isinstance(alerts, list)
 
-    def test_fraud_alert_dataclass():
+    def test_fraud_alert_dataclass(self):
         alert = FraudAlert(
             entity_id="C001",
             entity_name="Test Co",
@@ -44,7 +44,7 @@ class TestRuleBasedFraudDetector:
         assert alert.score == 0.75
         assert alert.evidence["key"] == "value"
 
-    def test_alert_levels():
+    def test_alert_levels(self):
         levels = [AlertLevel.LOW, AlertLevel.MEDIUM, AlertLevel.HIGH, AlertLevel.CRITICAL]
         assert len(levels) == 4
         assert AlertLevel.CRITICAL.value == "critical"
@@ -63,14 +63,14 @@ class TestRiskScoringEngine:
         result = engine.score_company("NONEXISTENT_ID")
         assert result is None
 
-    def test_risk_level_thresholds():
+    def test_risk_level_thresholds(self):
         from analytics.risk.risk_scoring import _risk_level
         assert _risk_level(10) == "low"
         assert _risk_level(30) == "medium"
         assert _risk_level(60) == "high"
         assert _risk_level(80) == "critical"
 
-    def test_weight_sum():
+    def test_weight_sum(self):
         from analytics.risk.risk_scoring import WEIGHTS
         total = sum(WEIGHTS.values())
         assert abs(total - 1.0) < 1e-9, f"Weights must sum to 1.0, got {total}"

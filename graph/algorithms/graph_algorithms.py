@@ -10,20 +10,34 @@ GDS_GRAPH = "enterprise-network"
 class GraphAlgorithms:
 
     @classmethod
-    def project_graph(cls, graph_name: str = GDS_GRAPH) -> dict:
+    def project_graph(
+        cls,
+        graph_name: str = GDS_GRAPH,
+        node_labels: list[str] | None = None,
+        rel_types: list[str] | None = None,
+    ) -> dict:
         """Chiếu đồ thị vào GDS in-memory."""
+        node_labels = node_labels or ["Company", "Person"]
+        rel_types = rel_types or ["RELATIONSHIP"]
+        # Build dynamic node projection
+        node_proj = node_labels if len(node_labels) > 1 else node_labels[0]
+        rel_proj = {rt: {"orientation": "NATURAL"} for rt in rel_types}
         with Neo4jConnection.session() as s:
             s.run("CALL gds.graph.drop($n, false)", n=graph_name)
             result = s.run("""
-                CALL gds.graph.project($n, ['Company','Person'],
-                    {RELATIONSHIP: {orientation:'NATURAL', properties:['ownership_percent']}})
+                CALL gds.graph.project($n, $nodes, $rels)
                 YIELD graphName, nodeCount, relationshipCount
-            """, n=graph_name).single()
+            """, n=graph_name, nodes=node_proj, rels=rel_proj).single()
             logger.info(f"Graph projected: {result['nodeCount']} nodes, {result['relationshipCount']} edges")
             return dict(result)
 
     @classmethod
-    def run_pagerank(cls, graph_name: str = GDS_GRAPH, write: bool = True) -> list[dict]:
+    def run_pagerank(
+        cls,
+        graph_name: str = GDS_GRAPH,
+        write: bool = True,
+        top_n: int = 100,
+    ) -> list[dict]:
         """PageRank — tầm ảnh hưởng trong mạng lưới."""
         if write:
             cypher = """
@@ -41,13 +55,18 @@ class GraphAlgorithms:
             MATCH (n) WHERE id(n) = nodeId
             RETURN COALESCE(n.company_id, n.person_id) AS entity_id,
                    n.name AS name, labels(n)[0] AS type, score
-            ORDER BY score DESC LIMIT 100
+            ORDER BY score DESC LIMIT $top_n
             """
             with Neo4jConnection.session() as s:
-                return [dict(r) for r in s.run(cypher, g=graph_name)]
+                return [dict(r) for r in s.run(cypher, g=graph_name, top_n=top_n)]
 
     @classmethod
-    def run_betweenness_centrality(cls, graph_name: str = GDS_GRAPH, write: bool = True) -> list[dict]:
+    def run_betweenness_centrality(
+        cls,
+        graph_name: str = GDS_GRAPH,
+        write: bool = True,
+        top_n: int = 50,
+    ) -> list[dict]:
         """Betweenness Centrality — nút cầu nối quan trọng."""
         if write:
             cypher = """
@@ -65,10 +84,10 @@ class GraphAlgorithms:
             MATCH (n) WHERE id(n) = nodeId
             RETURN COALESCE(n.company_id, n.person_id) AS entity_id,
                    n.name AS name, labels(n)[0] AS type, score
-            ORDER BY score DESC LIMIT 50
+            ORDER BY score DESC LIMIT $top_n
             """
             with Neo4jConnection.session() as s:
-                return [dict(r) for r in s.run(cypher, g=graph_name)]
+                return [dict(r) for r in s.run(cypher, g=graph_name, top_n=top_n)]
 
     @classmethod
     def run_community_detection(cls, graph_name: str = GDS_GRAPH, write: bool = True) -> list[dict]:
@@ -95,15 +114,40 @@ class GraphAlgorithms:
                 return [dict(r) for r in s.run(cypher, g=graph_name)]
 
     @classmethod
-    def get_top_connected_entities(cls, top_n: int = 20) -> list[dict]:
-        """Entities có nhiều kết nối nhất."""
-        cypher = """
-        MATCH (n) WHERE n:Company OR n:Person
-        WITH n, SIZE([(n)-[]-() | 1]) AS degree
-        ORDER BY degree DESC LIMIT $top_n
-        RETURN COALESCE(n.company_id, n.person_id) AS entity_id,
-               n.name AS name, labels(n)[0] AS type, degree,
-               n.risk_score AS risk_score
-        """
+    def get_top_connected_entities(
+        cls,
+        metric: str = "degree",
+        top_n: int = 20,
+    ) -> list[dict]:
+        """Entities theo metric: 'degree' | 'pagerank' | 'betweenness'."""
+        allowed = {"degree", "pagerank", "betweenness"}
+        if metric not in allowed:
+            raise ValueError(f"metric must be one of {allowed}")
+
+        if metric == "degree":
+            cypher = """
+            MATCH (n) WHERE n:Company OR n:Person
+            WITH n, SIZE([(n)-[]-() | 1]) AS score
+            ORDER BY score DESC LIMIT $top_n
+            RETURN COALESCE(n.company_id, n.person_id) AS entity_id,
+                   n.name AS name, labels(n)[0] AS type, score,
+                   n.risk_score AS risk_score
+            """
+        elif metric == "pagerank":
+            cypher = """
+            MATCH (n) WHERE (n:Company OR n:Person) AND n.pagerank_score IS NOT NULL
+            RETURN COALESCE(n.company_id, n.person_id) AS entity_id,
+                   n.name AS name, labels(n)[0] AS type,
+                   n.pagerank_score AS score, n.risk_score AS risk_score
+            ORDER BY score DESC LIMIT $top_n
+            """
+        else:  # betweenness
+            cypher = """
+            MATCH (n) WHERE (n:Company OR n:Person) AND n.betweenness_score IS NOT NULL
+            RETURN COALESCE(n.company_id, n.person_id) AS entity_id,
+                   n.name AS name, labels(n)[0] AS type,
+                   n.betweenness_score AS score, n.risk_score AS risk_score
+            ORDER BY score DESC LIMIT $top_n
+            """
         with Neo4jConnection.session() as s:
             return [dict(r) for r in s.run(cypher, top_n=top_n)]

@@ -35,4 +35,4 @@ def find_common_shareholders(company_ids: list[str]):
 @router.get("/{company_id}/circular-ownership")
 def check_circular(company_id: str):
     """Kiểm tra sở hữu vòng tròn cho công ty."""
-    return _queries.detect_circular_ownership(company_id)
+    return _queries.detect_circular_ownership(company_id=company_id)

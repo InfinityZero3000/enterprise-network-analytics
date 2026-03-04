@@ -1,8 +1,10 @@
 
 # Khởi động nhanh
+```
 cd ~/projects/enterprise-network-analytics
 cp .env.example .env          # điền credentials
 docker compose up -d          # khởi động tất cả services
+```
 - API: http://localhost:8000/docs
 - Neo4j: http://localhost:7474
 - Kafka UI: http://localhost:8080

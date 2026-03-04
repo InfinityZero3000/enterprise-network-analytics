@@ -1,7 +1,8 @@
 """FastAPI application entry point."""
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from loguru import logger
 
 from config.settings import settings
@@ -35,6 +36,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def api_key_middleware(request: Request, call_next):
+    """Optional X-API-Key authentication. Disabled when settings.api_key is empty."""
+    if settings.api_key and request.url.path not in ("/health", "/docs", "/openapi.json", "/redoc"):
+        provided = request.headers.get("X-API-Key", "")
+        if provided != settings.api_key:
+            return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key."})
+    return await call_next(request)
+
 
 from api.routes import companies, analytics, graph_api, ai_api  # noqa: E402
 

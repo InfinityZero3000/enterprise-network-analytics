@@ -38,8 +38,21 @@ class GraphQueries:
             return [dict(r) for r in s.run(cypher, ids=company_ids)]
 
     @staticmethod
-    def detect_circular_ownership(max_depth: int = 6) -> list[dict]:
-        """Phát hiện sở hữu vòng tròn."""
+    def detect_circular_ownership(
+        max_depth: int = 6,
+        company_id: str | None = None,
+    ) -> list[dict]:
+        """Phát hiện sở hữu vòng tròn. Lọc theo company_id nếu được cung cấp."""
+        if company_id:
+            cypher = """
+            MATCH path = (c:Company {company_id: $cid})-[:RELATIONSHIP*2..$max {rel_type: 'SHAREHOLDER'}]->(c)
+            RETURN c.company_id AS company_id, c.name AS company_name,
+                   length(path) AS cycle_length,
+                   [n IN nodes(path) | n.name] AS cycle_path
+            LIMIT 100
+            """
+            with Neo4jConnection.session() as s:
+                return [dict(r) for r in s.run(cypher, cid=company_id, max=max_depth)]
         cypher = """
         MATCH path = (c:Company)-[:RELATIONSHIP*2..$max {rel_type: 'SHAREHOLDER'}]->(c)
         RETURN c.company_id AS company_id, c.name AS company_name,

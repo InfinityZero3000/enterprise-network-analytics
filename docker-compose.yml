@@ -7,10 +7,15 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+      KAFKA_HEAP_OPTS: "-Xms128m -Xmx256m"
     ports:
       - "2181:2181"
     networks:
       - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 384M
 
   kafka:
     image: confluentinc/cp-kafka:7.6.0
@@ -26,8 +31,13 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
     networks:
       - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 768M
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -41,6 +51,10 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
     networks:
       - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   neo4j:
     image: neo4j:5.18-community
@@ -52,24 +66,34 @@ services:
       NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-ena_password}
       NEO4J_PLUGINS: '["graph-data-science","apoc"]'
       NEO4J_dbms_security_procedures_unrestricted: "gds.*,apoc.*"
-      NEO4J_dbms_memory_heap_max__size: 4G
-      NEO4J_dbms_memory_pagecache_size: 2G
+      NEO4J_dbms_memory_heap_initial__size: 512m
+      NEO4J_dbms_memory_heap_max__size: 2G
+      NEO4J_dbms_memory_pagecache_size: 1G
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
     networks:
       - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 3.5G
 
   spark-master:
     image: bitnami/spark:3.5
     container_name: ena-spark-master
     environment:
       - SPARK_MODE=master
+      - SPARK_DAEMON_MEMORY=256m
     ports:
       - "8082:8080"
       - "7077:7077"
     networks:
       - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   spark-worker:
     image: bitnami/spark:3.5
@@ -79,10 +103,15 @@ services:
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=4G
-      - SPARK_WORKER_CORES=4
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
+      - SPARK_DAEMON_MEMORY=256m
     networks:
       - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 2.5G
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.11.0
@@ -96,6 +125,10 @@ services:
       - mlflow_data:/mlflow
     networks:
       - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   minio:
     image: minio/minio:latest
@@ -111,6 +144,10 @@ services:
       - minio_data:/data
     networks:
       - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   api:
     build:
@@ -132,6 +169,10 @@ services:
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
 volumes:
   neo4j_data:

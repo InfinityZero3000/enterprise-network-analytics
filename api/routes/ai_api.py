@@ -50,9 +50,11 @@ def natural_to_cypher(req: NLCypherRequest):
 
 @router.post("/execute-cypher")
 def execute_cypher(req: ExecuteCypherRequest):
-    """Chuyển NL → Cypher → thực thi → trả về kết quả."""
+    """Thực thi Cypher query trực tiếp và trả về kết quả."""
+    from config.neo4j_config import Neo4jConnection
     try:
-        results = _llm.execute_nl_query(req.cypher)
+        with Neo4jConnection.session() as s:
+            results = [dict(r) for r in s.run(req.cypher)]
         return {"results": results, "count": len(results)}
     except Exception as e:
         raise HTTPException(400, f"Cypher execution failed: {e}")
