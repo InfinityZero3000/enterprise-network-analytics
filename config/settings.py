@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     minio_bucket_raw: str = Field("ena-raw", validation_alias="MINIO_BUCKET_RAW")
     minio_bucket_processed: str = Field("ena-processed", validation_alias="MINIO_BUCKET_PROCESSED")
 
+    @property
+    def minio_access_key(self) -> str:
+        return self.minio_user
+
+    @property
+    def minio_secret_key(self) -> str:
+        return self.minio_password
+
     # ── MLflow ────────────────────────────────────
     mlflow_tracking_uri: str = Field("http://localhost:5000", validation_alias="MLFLOW_TRACKING_URI")
     mlflow_experiment_name: str = Field(
@@ -41,6 +49,39 @@ class Settings(BaseSettings):
     openai_model: str = Field("gpt-4o", validation_alias="OPENAI_MODEL")
     ollama_base_url: str = Field("http://localhost:11434", validation_alias="OLLAMA_BASE_URL")
     ollama_model: str = Field("llama3.2", validation_alias="OLLAMA_MODEL")
+
+    # ── Crawlers ──────────────────────────────────
+    # OpenCorporates — https://api.opencorporates.com/
+    opencorporates_api_token: str = Field("", validation_alias="OPENCORPORATES_API_TOKEN")
+    opencorporates_base_url: str = Field(
+        "https://api.opencorporates.com/v0.4", validation_alias="OPENCORPORATES_BASE_URL"
+    )
+    # OpenSanctions — https://api.opensanctions.org/
+    opensanctions_api_key: str = Field("", validation_alias="OPENSANCTIONS_API_KEY")
+    opensanctions_base_url: str = Field(
+        "https://api.opensanctions.org", validation_alias="OPENSANCTIONS_BASE_URL"
+    )
+    # GLEIF LEI — https://api.gleif.org/api/v1/
+    gleif_base_url: str = Field(
+        "https://api.gleif.org/api/v1", validation_alias="GLEIF_BASE_URL"
+    )
+    # OpenOwnership — https://api.openownership.org/
+    openownership_base_url: str = Field(
+        "https://api.openownership.org", validation_alias="OPENOWNERSHIP_BASE_URL"
+    )
+    # World Bank — https://api.worldbank.org/v2/
+    worldbank_base_url: str = Field(
+        "https://api.worldbank.org/v2", validation_alias="WORLDBANK_BASE_URL"
+    )
+    # Vietnam DKKD — https://dangkykinhdoanh.gov.vn/
+    vn_nbr_base_url: str = Field(
+        "https://dangkykinhdoanh.gov.vn/vn/api", validation_alias="VN_NBR_BASE_URL"
+    )
+    # Crawler tunables
+    crawler_request_timeout: int = Field(30, validation_alias="CRAWLER_REQUEST_TIMEOUT")
+    crawler_max_retries: int = Field(3, validation_alias="CRAWLER_MAX_RETRIES")
+    crawler_rate_limit_rps: float = Field(2.0, validation_alias="CRAWLER_RATE_LIMIT_RPS")
+    crawler_concurrency: int = Field(5, validation_alias="CRAWLER_CONCURRENCY")
 
     # ── App ───────────────────────────────────────
     app_env: str = Field("development", validation_alias="APP_ENV")

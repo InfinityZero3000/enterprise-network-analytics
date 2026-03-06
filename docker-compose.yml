@@ -78,10 +78,13 @@ services:
           memory: 3.5G
 
   spark-master:
-    image: bitnami/spark:3
+    image: apache/spark:3.5.3
     container_name: ena-spark-master
+    user: root
+    command: ["/opt/spark/sbin/start-master.sh"]
     environment:
-      - SPARK_MODE=master
+      - SPARK_NO_DAEMONIZE=true
+      - SPARK_MASTER_HOST=spark-master
       - SPARK_DAEMON_MEMORY=256m
     ports:
       - "8082:8080"
@@ -94,14 +97,15 @@ services:
           memory: 512M
 
   spark-worker:
-    image: bitnami/spark:3
+    image: apache/spark:3.5.3
     container_name: ena-spark-worker
+    user: root
+    command: ["/opt/spark/sbin/start-worker.sh", "spark://spark-master:7077"]
     depends_on:
       - spark-master
     environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=2G
+      - SPARK_NO_DAEMONIZE=true
+      - SPARK_WORKER_MEMORY=2g
       - SPARK_WORKER_CORES=2
       - SPARK_DAEMON_MEMORY=256m
     networks:

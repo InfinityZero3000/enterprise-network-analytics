@@ -48,12 +48,13 @@ async def api_key_middleware(request: Request, call_next):
     return await call_next(request)
 
 
-from api.routes import companies, analytics, graph_api, ai_api  # noqa: E402
+from api.routes import companies, analytics, graph_api, ai_api, crawl_api  # noqa: E402
 
 app.include_router(companies.router, prefix="/api/v1/companies", tags=["Companies"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
 app.include_router(graph_api.router, prefix="/api/v1/graph", tags=["Graph"])
 app.include_router(ai_api.router, prefix="/api/v1/ai", tags=["AI"])
+app.include_router(crawl_api.router, prefix="/api/v1/crawl", tags=["Crawlers"])
 
 
 @app.get("/health", tags=["System"])

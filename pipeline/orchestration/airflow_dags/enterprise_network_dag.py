@@ -130,9 +130,57 @@ with DAG(
     )
 
     # ------------------------------------------------------------------ #
+    # Data Crawling (chạy trước ETL — thu thập dữ liệu mới nhất)
+    # ------------------------------------------------------------------ #
+    def _run_crawlers():
+        from ingestion.crawlers.crawler_pipeline import CrawlerPipeline
+        pipeline = CrawlerPipeline(publish_to_kafka=True)
+        report = pipeline.run(
+            sources=["vietnam_nbr", "opensanctions", "gleif", "worldbank"],
+            source_options={
+                "vietnam_nbr": {"keywords": ["cong ty", "corporation"], "max_pages": 5},
+                "opensanctions": {"max_per_dataset": 1000},
+                "gleif": {"countries": ["VN", "SG", "HK", "MY", "TH", "ID"], "max_pages": 10},
+                "worldbank": {"start_year": 2020, "end_year": 2025},
+            },
+            parallel=False,
+        )
+        print(f"Crawl complete: {report.summary()}")
+
+    def _run_opencorporates():
+        """OpenCorporates — chạy riêng vì có giới hạn rate."""
+        from ingestion.crawlers.crawler_pipeline import CrawlerPipeline
+        pipeline = CrawlerPipeline(publish_to_kafka=True)
+        report = pipeline.run(
+            sources=["opencorporates"],
+            source_options={
+                "opencorporates": {
+                    "jurisdictions": ["vn", "sg", "hk"],
+                    "queries": ["*"],
+                    "max_pages": 5,
+                    "fetch_officers": True,
+                }
+            },
+        )
+        print(f"OpenCorporates crawl: {report.summary()}")
+
+    crawl_data = PythonOperator(
+        task_id="crawl_external_data",
+        python_callable=_run_crawlers,
+        execution_timeout=timedelta(hours=2),
+    )
+
+    crawl_opencorporates = PythonOperator(
+        task_id="crawl_opencorporates",
+        python_callable=_run_opencorporates,
+        execution_timeout=timedelta(hours=3),
+    )
+
+    # ------------------------------------------------------------------ #
     # Task dependencies
     # ------------------------------------------------------------------ #
-    [health_neo4j, health_kafka] >> [etl_company, etl_relationship]
+    [health_neo4j, health_kafka] >> [crawl_data, crawl_opencorporates]
+    [crawl_data, crawl_opencorporates] >> [etl_company, etl_relationship]
     [etl_company, etl_relationship] >> load_neo4j >> run_gds
     run_gds >> [run_fraud, run_risk]
     run_risk >> update_embedding

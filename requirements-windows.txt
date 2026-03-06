@@ -1,0 +1,70 @@
+# requirements-windows.txt
+# Windows-compatible requirements cho enterprise-network-analytics
+#
+# Prerequisites (cài thủ công trước):
+#   1. Python 3.12 từ https://www.python.org
+#   2. Java JDK 11+ từ https://adoptium.net  (bắt buộc cho PySpark)
+#      Sau khi cài Java: set JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-11...
+#   3. Hadoop winutils (cho PySpark trên Windows):
+#      - Download từ https://github.com/cdarlint/winutils
+#      - set HADOOP_HOME=C:\hadoop  (chứa bin\winutils.exe)
+#
+# Cài đặt:
+#   python -m venv venv
+#   venv\Scripts\activate
+#   pip install --upgrade pip
+#   pip install -r requirements-windows.txt
+#   playwright install chromium
+
+# --- Core frameworks ---
+pyspark==3.5.1
+delta-spark==3.1.0
+fastavro==1.9.4
+neo4j==5.19.0
+
+# --- Kafka (confluent-kafka có wheel cho Windows từ v2.x) ---
+confluent-kafka[avro,schemaregistry]==2.4.0
+
+# --- API ---
+fastapi==0.111.0
+# uvicorn KHÔNG dùng [standard] trên Windows — uvloop không hỗ trợ Windows
+uvicorn==0.29.0
+
+# --- AI / ML ---
+pydantic>=2.10,<3.0
+pydantic-settings>=2.2.1
+scikit-learn==1.5.0
+networkx==3.3
+mlflow==2.13.0
+openai>=2.8.0
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-openai>=0.2.0
+
+# --- Data ---
+pandas==2.2.2
+pyarrow==15.0.2
+boto3==1.34.100
+
+# --- Utilities ---
+python-dotenv==1.0.1
+loguru==0.7.2
+tenacity==8.3.0
+tqdm==4.66.4
+httpx>=0.27.2
+cachetools>=5.3.3
+orjson>=3.10.3
+backoff==2.2.1
+aiolimiter==1.1.0
+
+# --- Web scraping (crawl4ai và deps) ---
+# crawl4ai tự kéo aiohttp>=3.11.11, lxml>=5.3, playwright>=1.49, fake-useragent>=2.0
+crawl4ai>=0.8.0
+aiohttp>=3.11.11
+beautifulsoup4>=4.12.0
+lxml>=5.3.0
+fake-useragent>=2.0.3
+playwright>=1.49.0
+
+# --- Dev tools (optional) ---
+# pip install pytest pytest-asyncio pytest-cov ruff mypy ipykernel jupyterlab
