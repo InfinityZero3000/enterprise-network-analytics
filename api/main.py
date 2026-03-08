@@ -2,7 +2,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from loguru import logger
 
 from config.settings import settings
@@ -55,6 +55,11 @@ app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytic
 app.include_router(graph_api.router, prefix="/api/v1/graph", tags=["Graph"])
 app.include_router(ai_api.router, prefix="/api/v1/ai", tags=["AI"])
 app.include_router(crawl_api.router, prefix="/api/v1/crawl", tags=["Crawlers"])
+
+
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/health", tags=["System"])

@@ -105,6 +105,7 @@ class BaseCrawler(ABC):
         (httpx.TimeoutException, httpx.HTTPStatusError, httpx.ConnectError),
         max_tries=3,
         max_time=60,
+        giveup=lambda e: isinstance(e, httpx.HTTPStatusError) and e.response.status_code < 500,
         on_backoff=lambda d: logger.warning(
             f"Retry #{d['tries']} after {d['wait']:.1f}s — {d['exception']}"
         ),

@@ -103,7 +103,17 @@ class VietnamNBRCrawler(BaseCrawler):
             "size": size,
         }
         try:
-            data = await self._get(client, self.DOANHNGHIEP_API, params)
+            # SSL cert có hostname mismatch — dùng client riêng với verify=False
+            async with httpx.AsyncClient(
+                timeout=self._timeout,
+                follow_redirects=True,
+                verify=False,
+            ) as no_ssl_client:
+                async with self._semaphore:
+                    async with self._limiter:
+                        resp = await no_ssl_client.get(self.DOANHNGHIEP_API, params=params)
+                        resp.raise_for_status()
+                        data = resp.json()
             return data.get("content", data) if isinstance(data, dict) else data
         except Exception as e:
             logger.debug(f"[VN-NBR] doanhnghiep.vn '{keyword}' p{page}: {e}")
