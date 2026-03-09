@@ -97,8 +97,14 @@ class WorldBankCrawler(BaseCrawler):
 
     @staticmethod
     def _map_indicator_row(row: dict, indicator_key: str) -> dict | None:
-        if row.get("value") is None:
+        raw_value = row.get("value")
+        if raw_value is None:
             return None
+        # Coerce value to float — World Bank API may return strings
+        try:
+            value = float(raw_value)
+        except (ValueError, TypeError):
+            value = raw_value
         country = row.get("country", {})
         return {
             "country_id": row.get("countryiso3code", row.get("country", {}).get("id", "")),
@@ -107,7 +113,7 @@ class WorldBankCrawler(BaseCrawler):
             "indicator_code": row.get("indicator", {}).get("id", ""),
             "indicator_name": row.get("indicator", {}).get("value", ""),
             "indicator_key": indicator_key,
-            "value": row.get("value"),
+            "value": value,
             "_source": "worldbank",
         }
 
@@ -166,7 +172,7 @@ class WorldBankCrawler(BaseCrawler):
                 }
             country_profiles[k][row["indicator_key"]] = row["value"]
 
-        result.companies = list(country_profiles.values())  # reuse companies slot for profiles
+        result.country_profiles = list(country_profiles.values())
 
         if all_indicator_rows:
             result.minio_keys.append(

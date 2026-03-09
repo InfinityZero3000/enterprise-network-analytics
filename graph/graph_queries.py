@@ -82,15 +82,20 @@ class GraphQueries:
         """Tổng quan network của một công ty."""
         cypher = """
         MATCH (c:Company {company_id: $cid})
-        OPTIONAL MATCH (c)<-[:RELATIONSHIP {rel_type: 'SHAREHOLDER'}]-(sh)
-        OPTIONAL MATCH (c)-[:RELATIONSHIP {rel_type: 'SHAREHOLDER'}]->(inv)
-        OPTIONAL MATCH (c)-[:RELATIONSHIP {rel_type: 'SUBSIDIARY'}]->(sub)
-        OPTIONAL MATCH (c)-[:RELATIONSHIP]->(partner)
+        OPTIONAL MATCH (c)<-[r_sh:RELATIONSHIP {rel_type: 'SHAREHOLDER'}]-(sh)
+        WITH c, COUNT(DISTINCT sh) AS shareholder_count
+        OPTIONAL MATCH (c)-[r_inv:RELATIONSHIP {rel_type: 'SHAREHOLDER'}]->(inv)
+        WITH c, shareholder_count, COUNT(DISTINCT inv) AS investee_count
+        OPTIONAL MATCH (c)-[r_sub:RELATIONSHIP {rel_type: 'SUBSIDIARY'}]->(sub)
+        WITH c, shareholder_count, investee_count, COUNT(DISTINCT sub) AS subsidiary_count
+        OPTIONAL MATCH (c)-[r_all:RELATIONSHIP]-(connected)
         RETURN c.name AS name, c.status AS status, c.risk_score AS risk_score,
-               COUNT(DISTINCT sh)     AS shareholder_count,
-               COUNT(DISTINCT inv)    AS investee_count,
-               COUNT(DISTINCT sub)    AS subsidiary_count,
-               COUNT(DISTINCT partner) AS total_connections
+               c.pagerank_score AS pagerank_score,
+               c.community_id AS community_id,
+               shareholder_count,
+               investee_count,
+               subsidiary_count,
+               COUNT(DISTINCT connected) AS total_connections
         """
         with Neo4jConnection.session() as s:
             result = s.run(cypher, cid=company_id).single()

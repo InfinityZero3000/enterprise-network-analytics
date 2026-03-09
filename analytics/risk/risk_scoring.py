@@ -61,7 +61,7 @@ class RiskScoringEngine:
     MATCH (c:Company {company_id: $cid})
     OPTIONAL MATCH (sh)-[r:RELATIONSHIP {rel_type:'SHAREHOLDER'}]->(c)
     WITH c, COUNT(r) AS sh_count,
-         MAX(coalesce(r.ownership_pct,0)) AS top_sh_pct
+         MAX(coalesce(r.ownership_percent,0)) AS top_sh_pct
     OPTIONAL MATCH (c)-[:RELATIONSHIP {rel_type:'SHAREHOLDER'}]->(inv:Company)
     RETURN sh_count, top_sh_pct,
            COUNT(inv) AS investee_count,
@@ -92,10 +92,10 @@ class RiskScoringEngine:
                 topo_score = topo_raw
 
                 # --- Ownership ---
-                sh_count = o["sh_count"] or 0 if o else 0
-                top_pct = o["top_sh_pct"] or 0 if o else 0
-                capital = o["capital"] or 0 if o else 0
-                investee = o["investee_count"] or 0 if o else 0
+                sh_count = (o["sh_count"] or 0) if o else 0
+                top_pct = (o["top_sh_pct"] or 0) if o else 0
+                capital = (o["capital"] or 0) if o else 0
+                investee = (o["investee_count"] or 0) if o else 0
                 own_raw = 0.0
                 flags = []
                 if capital < 100_000_000:
@@ -166,5 +166,15 @@ class RiskScoringEngine:
             p = self.score_company(cid)
             if p:
                 profiles.append(p)
+                # Persist risk score back to Neo4j
+                try:
+                    with Neo4jConnection.session() as s:
+                        s.run(
+                            "MATCH (c:Company {company_id:$cid}) "
+                            "SET c.risk_score = $score, c.risk_level = $level",
+                            cid=cid, score=p.total_score, level=p.risk_level,
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed to persist risk score for {cid}: {e}")
         logger.info(f"Batch risk scoring complete: {len(profiles)} companies")
         return profiles

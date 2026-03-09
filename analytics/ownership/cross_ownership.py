@@ -32,7 +32,7 @@ class OwnershipAnalyzer:
         cypher = """
         MATCH path = (p:Person)-[:RELATIONSHIP*1..6 {rel_type:'SHAREHOLDER'}]->(c:Company)
         WITH c, p, length(path) AS depth,
-             reduce(pct=1.0, r IN relationships(path) | pct * coalesce(r.ownership_pct,0)/100.0) AS eff_pct
+             reduce(pct=1.0, r IN relationships(path) | pct * coalesce(r.ownership_percent,0)/100.0) AS eff_pct
         WHERE eff_pct * 100 >= $min_pct
         RETURN c.company_id AS company_id, c.name AS company_name,
                p.person_id AS ubo_id, p.full_name AS ubo_name,
@@ -74,7 +74,7 @@ class OwnershipAnalyzer:
         cypher = """
         MATCH path = (root:Company {company_id: $cid})<-[:RELATIONSHIP*1..$depth {rel_type:'SHAREHOLDER'}]-(n)
         RETURN [node IN nodes(path) | {id: coalesce(node.company_id, node.person_id), name: coalesce(node.name, node.full_name), label: labels(node)[0]}] AS chain,
-               [rel IN relationships(path) | coalesce(rel.ownership_pct, 0)] AS pct_chain
+               [rel IN relationships(path) | coalesce(rel.ownership_percent, 0)] AS pct_chain
         """
         nodes: dict[str, dict] = {}
         edges: list[dict] = []
@@ -91,14 +91,26 @@ class OwnershipAnalyzer:
                     })
         return {"company_id": company_id, "nodes": list(nodes.values()), "edges": edges}
 
+    def get_ubo_for_company(self, company_id: str, min_pct: float = 5.0) -> list[dict]:
+        """Tìm UBO cho một công ty cụ thể."""
+        cypher = """
+        MATCH path = (p:Person)-[:RELATIONSHIP*1..6 {rel_type:'SHAREHOLDER'}]->(c:Company {company_id:$cid})
+        WITH p, c, length(path) AS depth,
+             reduce(pct=1.0, r IN relationships(path) | pct * coalesce(r.ownership_percent,0)/100.0) AS eff_pct
+        WHERE eff_pct * 100 >= $min_pct
+        RETURN p.person_id AS ubo_id, p.full_name AS ubo_name,
+               round(eff_pct*100,2) AS ownership_pct, depth
+        ORDER BY ownership_pct DESC
+        """
+        with Neo4jConnection.session() as s:
+            return [dict(r) for r in s.run(cypher, cid=company_id, min_pct=min_pct)]
+
     def ownership_concentration_report(self) -> list[dict]:
         cypher = """
-        MATCH (sh)-[:RELATIONSHIP {rel_type:'SHAREHOLDER'}]->(c:Company)
-        WITH c, COUNT(sh) AS shareholder_count, SUM(coalesce(r.ownership_pct, 0)) AS total_pct
-        MATCH ()-[r:RELATIONSHIP {rel_type:'SHAREHOLDER'}]->(c)
-        WITH c, shareholder_count,
-             MAX(coalesce(r.ownership_pct,0)) AS top_shareholder_pct,
-             total_pct
+        MATCH (sh)-[r:RELATIONSHIP {rel_type:'SHAREHOLDER'}]->(c:Company)
+        WITH c, COUNT(sh) AS shareholder_count,
+             SUM(coalesce(r.ownership_percent, 0)) AS total_pct,
+             MAX(coalesce(r.ownership_percent, 0)) AS top_shareholder_pct
         RETURN c.company_id AS company_id, c.name AS name,
                shareholder_count, top_shareholder_pct,
                total_pct AS declared_pct

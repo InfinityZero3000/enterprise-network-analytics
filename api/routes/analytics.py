@@ -59,18 +59,7 @@ def get_ubo(
     min_pct: float = Query(default=5.0, ge=0.1, le=100.0),
 ):
     """Tìm Ultimate Beneficial Owner (UBO) của doanh nghiệp."""
-    from config.neo4j_config import Neo4jConnection
-    cypher = """
-    MATCH path = (p:Person)-[:RELATIONSHIP*1..6 {rel_type:'SHAREHOLDER'}]->(c:Company {company_id:$cid})
-    WITH p, c, length(path) AS depth,
-         reduce(pct=1.0, r IN relationships(path) | pct * coalesce(r.ownership_pct,0)/100.0) AS eff_pct
-    WHERE eff_pct * 100 >= $min_pct
-    RETURN p.person_id AS ubo_id, p.full_name AS ubo_name,
-           round(eff_pct*100,2) AS ownership_pct, depth
-    ORDER BY ownership_pct DESC
-    """
-    with Neo4jConnection.session() as s:
-        return [dict(r) for r in s.run(cypher, cid=company_id, min_pct=min_pct)]
+    return _ownership.get_ubo_for_company(company_id, min_pct=min_pct)
 
 
 @router.get("/ownership/cross")

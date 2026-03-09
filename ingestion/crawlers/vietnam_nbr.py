@@ -103,11 +103,17 @@ class VietnamNBRCrawler(BaseCrawler):
             "size": size,
         }
         try:
-            # SSL cert có hostname mismatch — dùng client riêng với verify=False
+            # SSL cert có hostname mismatch — dùng ssl context với certifi
+            import ssl
+            import certifi
+            ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+            logger.warning("[VN-NBR] doanhnghiep.vn: SSL verification disabled due to cert mismatch")
             async with httpx.AsyncClient(
                 timeout=self._timeout,
                 follow_redirects=True,
-                verify=False,
+                verify=ssl_ctx,
             ) as no_ssl_client:
                 async with self._semaphore:
                     async with self._limiter:

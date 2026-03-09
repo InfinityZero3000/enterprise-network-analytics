@@ -32,6 +32,7 @@ class PipelineCrawlReport:
     total_companies: int = 0
     total_persons: int = 0
     total_relationships: int = 0
+    total_country_profiles: int = 0
     total_errors: int = 0
     published_companies: int = 0
     published_persons: int = 0
@@ -45,6 +46,7 @@ class PipelineCrawlReport:
             "total_companies": self.total_companies,
             "total_persons": self.total_persons,
             "total_relationships": self.total_relationships,
+            "total_country_profiles": self.total_country_profiles,
             "total_errors": self.total_errors,
             "published_companies": self.published_companies,
             "published_persons": self.published_persons,
@@ -201,6 +203,7 @@ class CrawlerPipeline:
                 report.total_companies += len(result.companies)
                 report.total_persons += len(result.persons)
                 report.total_relationships += len(result.relationships)
+                report.total_country_profiles += len(result.country_profiles)
                 report.total_errors += len(result.errors)
                 self._publish_result(result, report)
             except Exception as e:
@@ -233,6 +236,7 @@ class CrawlerPipeline:
                 report.total_companies += len(r.companies)
                 report.total_persons += len(r.persons)
                 report.total_relationships += len(r.relationships)
+                report.total_country_profiles += len(r.country_profiles)
                 report.total_errors += len(r.errors)
                 self._publish_result(r, report)
 

@@ -53,13 +53,21 @@ class Neo4jLoader:
 
     def _load(self, df: DataFrame, cypher: str, label: str) -> int:
         total = 0
+        row_count = df.count()
+        if row_count == 0:
+            logger.warning(f"[{label}] Empty DataFrame — nothing to load.")
+            return 0
         pdf: pd.DataFrame = df.toPandas()
         for chunk in self._chunks(pdf, BATCH_SIZE):
             records = chunk.where(pd.notnull(chunk), None).to_dict("records")
-            with Neo4jConnection.session() as s:
-                s.run(cypher, batch=records)
-            total += len(records)
-            logger.debug(f"[{label}] {total}/{len(pdf)} loaded...")
+            try:
+                with Neo4jConnection.session() as s:
+                    s.run(cypher, batch=records)
+                total += len(records)
+                logger.debug(f"[{label}] {total}/{len(pdf)} loaded...")
+            except Exception as e:
+                logger.error(f"[{label}] Batch failed at {total}/{len(pdf)}: {e}")
+                raise
         logger.info(f"[{label}] Total: {total} records into Neo4j.")
         return total
 

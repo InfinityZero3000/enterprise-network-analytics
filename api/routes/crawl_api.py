@@ -226,8 +226,8 @@ async def get_vn_company(mst: str):
     Tra cứu thông tin doanh nghiệp Việt Nam theo Mã số thuế.
     """
     from ingestion.crawlers.vietnam_nbr import VietnamNBRCrawler
-    crawler = VietnamNBRCrawler()
-    result = crawler.run(mst_list=[mst], keywords=[], max_pages=1, use_doanhnghiep_vn=False)
+    _vn_crawler = VietnamNBRCrawler()
+    result = _vn_crawler.run(mst_list=[mst], keywords=[], max_pages=1, use_doanhnghiep_vn=False)
     if not result.companies:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy doanh nghiệp với MST: {mst}")
     return {

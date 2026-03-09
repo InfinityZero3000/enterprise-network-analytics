@@ -76,13 +76,16 @@ class GleifCrawler(BaseCrawler):
         entity = attr.get("entity", {})
         reg = attr.get("registration", {})
         addr = entity.get("legalAddress", {})
-        address_str = ", ".join(filter(None, [
-            addr.get("addressLines", [""])[0] if addr.get("addressLines") else "",
+        addr_lines = addr.get("addressLines", [])
+        first_line = addr_lines[0] if addr_lines else ""
+        address_parts = [
+            first_line,
             addr.get("city", ""),
             addr.get("region", ""),
             addr.get("postalCode", ""),
             addr.get("country", ""),
-        ]))
+        ]
+        address_str = ", ".join(part for part in address_parts if part)
         return {
             "company_id": f"GLEIF-{record['id']}",
             "name": entity.get("legalName", {}).get("name", ""),
@@ -150,10 +153,15 @@ class GleifCrawler(BaseCrawler):
                             # Direct parent → ownership relationship
                             parent_data = await self._get_relationships(client, lei, "direct-parent")
                             parent_records = parent_data.get("data", [])
-                            for p_rec in parent_records:
-                                parent_lei = p_rec.get("id", "") if isinstance(p_rec, dict) else ""
-                                if parent_lei and parent_lei != lei:
-                                    result.relationships.append({
+                            if isinstance(parent_records, dict):
+                                parent_records = [parent_records]
+                            for p_rec in (parent_records or []):
+                                if not isinstance(p_rec, dict):
+                                    continue
+                                parent_lei = p_rec.get("id", "")
+                                if not parent_lei or parent_lei == lei:
+                                    continue
+                                result.relationships.append({
                                         "source_id": f"GLEIF-{lei}",
                                         "target_id": f"GLEIF-{parent_lei}",
                                         "source_type": "Company",

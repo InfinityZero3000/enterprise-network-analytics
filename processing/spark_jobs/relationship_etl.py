@@ -24,8 +24,14 @@ def run_relationship_etl(spark: SparkSession | None = None) -> DataFrame:
     df = (
         df
         .dropDuplicates(["source_id", "target_id", "rel_type"])
-        .filter(F.col("source_id").isNotNull() & F.col("target_id").isNotNull())
+        .filter(
+            F.col("source_id").isNotNull()
+            & F.col("target_id").isNotNull()
+            & F.col("rel_type").isNotNull()
+        )
         .withColumn("rel_type", F.upper(F.col("rel_type")))
+        .withColumn("ownership_percent",
+            F.coalesce(F.col("ownership_percent"), F.lit(0.0)))
         .withColumn("ownership_percent",
             F.when(F.col("ownership_percent") > 100, 100.0)
             .when(F.col("ownership_percent") < 0, 0.0)

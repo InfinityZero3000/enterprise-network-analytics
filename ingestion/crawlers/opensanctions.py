@@ -108,6 +108,15 @@ class OpenSanctionsCrawler(BaseCrawler):
     # ── Mappers ───────────────────────────────────────────────────────────────
 
     @staticmethod
+    def _safe_first(val, default=""):
+        """Safely get first element from a list or return the value if it's a string."""
+        if val is None:
+            return default
+        if isinstance(val, list):
+            return val[0] if val else default
+        return val
+
+    @staticmethod
     def _map_entity(raw: dict) -> dict | None:
         schema = raw.get("schema", "")
         props = raw.get("properties", {})
@@ -115,12 +124,12 @@ class OpenSanctionsCrawler(BaseCrawler):
         if schema in ("Company", "Organization", "LegalEntity"):
             return {
                 "company_id": f"SANS-{raw['id']}",
-                "name": (props.get("name") or [""])[0],
-                "tax_code": (props.get("registrationNumber") or [None])[0],
+                "name": OpenSanctionsCrawler._safe_first(props.get("name")),
+                "tax_code": OpenSanctionsCrawler._safe_first(props.get("registrationNumber"), None),
                 "company_type": "llc",
                 "status": "active",
-                "country": (props.get("country") or ["XX"])[0].upper(),
-                "address": (props.get("address") or [None])[0],
+                "country": OpenSanctionsCrawler._safe_first(props.get("country"), "XX").upper(),
+                "address": OpenSanctionsCrawler._safe_first(props.get("address"), None),
                 "is_sanctioned": True,
                 "_source": "opensanctions",
                 "_sans_id": raw["id"],
@@ -130,8 +139,8 @@ class OpenSanctionsCrawler(BaseCrawler):
         if schema in ("Person",):
             return {
                 "person_id": f"SANS-{raw['id']}",
-                "full_name": (props.get("name") or [""])[0],
-                "nationality": (props.get("nationality") or [""])[0],
+                "full_name": OpenSanctionsCrawler._safe_first(props.get("name")),
+                "nationality": OpenSanctionsCrawler._safe_first(props.get("nationality")),
                 "is_pep": "peps" in raw.get("datasets", []),
                 "is_sanctioned": True,
                 "_source": "opensanctions",
@@ -248,10 +257,15 @@ class OpenSanctionsCrawler(BaseCrawler):
         candidates = [{"schema": "Thing", "properties": {"name": [n]}} for n in names]
         async with self._build_client(self._headers()) as client:
             result = await self._match_entities(client, candidates)
-        return {
-            names[int(k)]: list(v.get("results", []))
-            for k, v in result.get("responses", {}).items()
-        }
+        output: dict[str, list[dict]] = {}
+        for k, v in result.get("responses", {}).items():
+            try:
+                idx = int(k)
+                if 0 <= idx < len(names):
+                    output[names[idx]] = list(v.get("results", []))
+            except (ValueError, IndexError):
+                logger.warning(f"[SANS] match_names: unexpected response key {k}")
+        return output
 
     def run_match(self, names: list[str]) -> dict[str, list[dict]]:
         return asyncio.run(self.match_names(names))

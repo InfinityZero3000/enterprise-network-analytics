@@ -8,6 +8,7 @@ from loguru import logger
 from config.spark_config import create_spark_session
 from config.neo4j_config import Neo4jConnection, setup_constraints_and_indexes
 from config.kafka_config import create_topics_if_not_exist
+from config.settings import settings
 from processing.spark_jobs.company_etl import run_company_etl
 from processing.spark_jobs.relationship_etl import run_relationship_etl
 from graph.neo4j_loader import Neo4jLoader
@@ -71,13 +72,16 @@ class BatchPipeline:
 
             self._stage(result, "spark_etl", etl)
 
-            # 3. Load into Neo4j
+            # 3. Load into Neo4j (read from Delta Lake paths written by ETL)
             def load_graph():
                 loader = Neo4jLoader()
-                company_df = spark.read.format("delta").load("s3a://ena-processed/companies")
-                rel_df = spark.read.format("delta").load("s3a://ena-processed/relationships")
-                loader.load_companies(company_df)
-                loader.load_relationships(rel_df)
+                company_path = f"s3a://{settings.minio_bucket_processed}/companies"
+                rel_path = f"s3a://{settings.minio_bucket_processed}/relationships"
+                company_df = spark.read.format("delta").load(company_path)
+                rel_df = spark.read.format("delta").load(rel_path)
+                loaded_c = loader.load_companies(company_df)
+                loaded_r = loader.load_relationships(rel_df)
+                logger.info(f"Neo4j loaded: {loaded_c} companies, {loaded_r} relationships")
 
             self._stage(result, "neo4j_load", load_graph)
 

@@ -36,6 +36,7 @@ class CrawlResult:
     companies: list[dict] = field(default_factory=list)
     persons: list[dict] = field(default_factory=list)
     relationships: list[dict] = field(default_factory=list)
+    country_profiles: list[dict] = field(default_factory=list)
     raw_count: int = 0
     errors: list[str] = field(default_factory=list)
     started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -54,6 +55,7 @@ class CrawlResult:
             "companies": len(self.companies),
             "persons": len(self.persons),
             "relationships": len(self.relationships),
+            "country_profiles": len(self.country_profiles),
             "raw_count": self.raw_count,
             "errors": len(self.errors),
             "duration_s": round(self.duration_seconds, 2),
