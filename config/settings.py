@@ -77,6 +77,14 @@ class Settings(BaseSettings):
     vn_nbr_base_url: str = Field(
         "https://dangkykinhdoanh.gov.vn/vn/api", validation_alias="VN_NBR_BASE_URL"
     )
+    # ── News Intelligence (GDELT-style) ────────
+    groq_api_key: str = Field("", validation_alias="GROQ_API_KEY")
+    groq_model: str = Field("llama-3.3-70b-versatile", validation_alias="GROQ_MODEL")
+    tavily_api_key: str = Field("", validation_alias="TAVILY_API_KEY")
+    news_max_articles: int = Field(50, validation_alias="NEWS_MAX_ARTICLES")
+    news_crawl_timeout: int = Field(60, validation_alias="NEWS_CRAWL_TIMEOUT")
+    news_domains_blocklist: str = Field("", validation_alias="NEWS_DOMAINS_BLOCKLIST")
+
     # Crawler tunables
     crawler_request_timeout: int = Field(30, validation_alias="CRAWLER_REQUEST_TIMEOUT")
     crawler_max_retries: int = Field(3, validation_alias="CRAWLER_MAX_RETRIES")

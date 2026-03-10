@@ -129,6 +129,15 @@ def list_sources():
                 "requires_api_key": False,
                 "env_var": None,
             },
+            {
+                "id": "news_intelligence",
+                "name": "News Intelligence (GDELT-style)",
+                "url": "Tavily Search + crawl4ai + spaCy NLP",
+                "license": "Varies by source",
+                "data": ["companies", "persons", "relationships", "articles"],
+                "requires_api_key": True,
+                "env_var": "TAVILY_API_KEY",
+            },
         ]
     }
 
@@ -233,4 +242,85 @@ async def get_vn_company(mst: str):
     return {
         "company": result.companies[0],
         "representatives": result.persons,
+    }
+
+
+# ─── News Intelligence (GDELT-style) ─────────────────────────────────────────
+
+class NewsSearchRequest(BaseModel):
+    queries: list[str] = Field(
+        ...,
+        min_length=1,
+        max_length=10,
+        description="Từ khóa tìm kiếm tin tức (vd: ['Vingroup M&A', 'Vietnam banking fraud'])",
+    )
+    max_articles: int = Field(default=20, ge=1, le=100, description="Số bài tối đa")
+    search_depth: str = Field(default="basic", description="basic hoặc advanced (Tavily)")
+    include_domains: list[str] | None = Field(default=None, description="Chỉ crawl từ các domain này")
+    exclude_domains: list[str] | None = Field(default=None, description="Bỏ qua domain này")
+    extract_relationships: bool = Field(default=True, description="Chạy verb-triple extraction")
+
+
+@router.post(
+    "/news/search",
+    summary="Tìm và phân tích tin tức (GDELT-style) — đồng bộ",
+)
+async def search_news(req: NewsSearchRequest):
+    """
+    Tìm bài báo qua Tavily → crawl nội dung → NLP entity & relationship extraction.
+    Trả về entities, relationships, và articles đã phân tích.
+    """
+    from ingestion.crawlers.news_intelligence import NewsIntelligenceCrawler
+    crawler = NewsIntelligenceCrawler()
+    try:
+        result = await crawler.crawl(
+            queries=req.queries,
+            max_articles=req.max_articles,
+            search_depth=req.search_depth,
+            include_domains=req.include_domains,
+            exclude_domains=req.exclude_domains,
+            extract_relationships=req.extract_relationships,
+        )
+        return {
+            "summary": result.summary(),
+            "companies": result.companies[:50],
+            "persons": result.persons[:50],
+            "relationships": result.relationships[:50],
+            "errors": result.errors,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/news/search/background",
+    summary="Tìm và phân tích tin tức (background)",
+    status_code=202,
+)
+def search_news_background(req: NewsSearchRequest, background_tasks: BackgroundTasks):
+    """
+    Kích hoạt news intelligence crawl ở background.
+    Kết quả upload lên MinIO và publish lên Kafka.
+    """
+    def _run():
+        try:
+            from ingestion.crawlers.news_intelligence import NewsIntelligenceCrawler
+            crawler = NewsIntelligenceCrawler()
+            result = crawler.run(
+                queries=req.queries,
+                max_articles=req.max_articles,
+                search_depth=req.search_depth,
+                include_domains=req.include_domains,
+                exclude_domains=req.exclude_domains,
+                extract_relationships=req.extract_relationships,
+            )
+            logger.info(f"[news-bg] Finished: {result.summary()}")
+        except Exception as e:
+            logger.error(f"[news-bg] Error: {e}")
+
+    background_tasks.add_task(_run)
+    return {
+        "status": "accepted",
+        "message": f"News intelligence đã lên lịch cho {len(req.queries)} queries, tối đa {req.max_articles} bài.",
+        "queries": req.queries,
     }

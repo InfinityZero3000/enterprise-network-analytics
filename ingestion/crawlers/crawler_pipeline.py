@@ -23,6 +23,7 @@ from ingestion.crawlers.gleif import GleifCrawler
 from ingestion.crawlers.openownership import OpenOwnershipCrawler
 from ingestion.crawlers.worldbank import WorldBankCrawler
 from ingestion.crawlers.vietnam_nbr import VietnamNBRCrawler
+from ingestion.crawlers.news_intelligence import NewsIntelligenceCrawler
 from ingestion.kafka_producer import EnterpriseProducer
 
 
@@ -73,6 +74,7 @@ class CrawlerPipeline:
         "openownership",
         "worldbank",
         "vietnam_nbr",
+        "news_intelligence",
     ]
 
     def __init__(self, publish_to_kafka: bool = True) -> None:
@@ -122,6 +124,16 @@ class CrawlerPipeline:
                 "keywords": opts.get("keywords", ["cong ty", "corporation"]),
                 "mst_list": opts.get("mst_list", None),
                 "max_pages": opts.get("max_pages", 3),
+            })
+        if source == "news_intelligence":
+            c = NewsIntelligenceCrawler()
+            return c, opts.get("crawl_kwargs", {
+                "queries": opts.get("queries", ["Vietnam company acquisition merger"]),
+                "max_articles": opts.get("max_articles", 20),
+                "search_depth": opts.get("search_depth", "basic"),
+                "include_domains": opts.get("include_domains", None),
+                "exclude_domains": opts.get("exclude_domains", None),
+                "extract_relationships": opts.get("extract_relationships", True),
             })
         raise ValueError(f"Unknown crawler source: {source}")
 

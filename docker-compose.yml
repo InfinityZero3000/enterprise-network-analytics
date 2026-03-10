@@ -2,22 +2,25 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
     container_name: ena-zookeeper
+    restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-      KAFKA_HEAP_OPTS: "-Xms128m -Xmx256m"
+      KAFKA_HEAP_OPTS: "-Xms96m -Xmx192m"
     ports:
       - "2181:2181"
+    mem_limit: 256m
     networks:
       - ena-net
     deploy:
       resources:
         limits:
-          memory: 384M
+          memory: 256M
 
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: ena-kafka
+    restart: unless-stopped
     depends_on:
       - zookeeper
     ports:
@@ -29,66 +32,8 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
-    networks:
-      - ena-net
-    deploy:
-      resources:
-        limits:
-          memory: 768M
-
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: ena-kafka-ui
-    depends_on:
-      - kafka
-    ports:
-      - "8080:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-    networks:
-      - ena-net
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-
-  neo4j:
-    image: neo4j:5.18-community
-    container_name: ena-neo4j
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    environment:
-      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-ena_password}
-      NEO4J_PLUGINS: '["graph-data-science","apoc"]'
-      NEO4J_dbms_security_procedures_unrestricted: "gds.*,apoc.*"
-      NEO4J_dbms_memory_heap_initial__size: 512m
-      NEO4J_dbms_memory_heap_max__size: 2G
-      NEO4J_dbms_memory_pagecache_size: 1G
-    volumes:
-      - neo4j_data:/data
-      - neo4j_logs:/logs
-    networks:
-      - ena-net
-    deploy:
-      resources:
-        limits:
-          memory: 3.5G
-
-  spark-master:
-    image: apache/spark:3.5.3
-    container_name: ena-spark-master
-    user: root
-    command: ["/opt/spark/sbin/start-master.sh"]
-    environment:
-      - SPARK_NO_DAEMONIZE=true
-      - SPARK_MASTER_HOST=spark-master
-      - SPARK_DAEMON_MEMORY=256m
-    ports:
-      - "8082:8080"
-      - "7077:7077"
+      KAFKA_HEAP_OPTS: "-Xms192m -Xmx384m"
+    mem_limit: 512m
     networks:
       - ena-net
     deploy:
@@ -96,35 +41,64 @@ services:
         limits:
           memory: 512M
 
-  spark-worker:
-    image: apache/spark:3.5.3
-    container_name: ena-spark-worker
-    user: root
-    command: ["/opt/spark/sbin/start-worker.sh", "spark://spark-master:7077"]
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: ena-kafka-ui
+    restart: unless-stopped
     depends_on:
-      - spark-master
+      - kafka
+    ports:
+      - "8080:8080"
     environment:
-      - SPARK_NO_DAEMONIZE=true
-      - SPARK_WORKER_MEMORY=2g
-      - SPARK_WORKER_CORES=2
-      - SPARK_DAEMON_MEMORY=256m
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    mem_limit: 192m
     networks:
       - ena-net
     deploy:
       resources:
         limits:
-          memory: 2.5G
+          memory: 192M
 
-  mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.11.0
-    container_name: ena-mlflow
+  neo4j:
+    image: neo4j:5.18-community
+    container_name: ena-neo4j
+    restart: unless-stopped
     ports:
-      - "5000:5000"
-    command: >
-      mlflow server --backend-store-uri sqlite:///mlflow/mlflow.db
-      --default-artifact-root /mlflow/artifacts --host 0.0.0.0
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-ena_password}
+      NEO4J_PLUGINS: '["graph-data-science","apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: "gds.*,apoc.*"
+      NEO4J_dbms_memory_heap_initial__size: 384m
+      NEO4J_dbms_memory_heap_max__size: 768m
+      NEO4J_dbms_memory_pagecache_size: 256m
     volumes:
-      - mlflow_data:/mlflow
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    mem_limit: 1536m
+    networks:
+      - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+
+  spark-master:
+    image: apache/spark:3.5.3
+    container_name: ena-spark-master
+    restart: unless-stopped
+    user: root
+    command: ["/opt/spark/sbin/start-master.sh"]
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_DAEMON_MEMORY=192m
+    ports:
+      - "8082:8080"
+      - "7077:7077"
+    mem_limit: 256m
     networks:
       - ena-net
     deploy:
@@ -132,9 +106,50 @@ services:
         limits:
           memory: 256M
 
+  spark-worker:
+    image: apache/spark:3.5.3
+    container_name: ena-spark-worker
+    restart: unless-stopped
+    user: root
+    command: ["/opt/spark/sbin/start-worker.sh", "spark://spark-master:7077"]
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+      - SPARK_WORKER_MEMORY=768m
+      - SPARK_WORKER_CORES=1
+      - SPARK_DAEMON_MEMORY=192m
+    mem_limit: 1024m
+    networks:
+      - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.11.0
+    container_name: ena-mlflow
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    command: >
+      mlflow server --backend-store-uri sqlite:///mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts --host 0.0.0.0
+    volumes:
+      - mlflow_data:/mlflow
+    mem_limit: 192m
+    networks:
+      - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+
   minio:
     image: minio/minio:latest
     container_name: ena-minio
+    restart: unless-stopped
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -144,6 +159,7 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
+    mem_limit: 256m
     networks:
       - ena-net
     deploy:
@@ -156,6 +172,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: ena-api
+    restart: unless-stopped
     depends_on:
       - neo4j
       - kafka
@@ -174,6 +191,7 @@ services:
     volumes:
       - .:/app
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    mem_limit: 512m
     networks:
       - ena-net
     deploy:
