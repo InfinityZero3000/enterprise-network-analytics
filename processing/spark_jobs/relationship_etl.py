@@ -17,6 +17,7 @@ def run_relationship_etl(spark: SparkSession | None = None) -> DataFrame:
     df = (
         spark.read
         .option("header", True)
+        .option("recursiveFileLookup", "true")
         .schema(RELATIONSHIP_SPARK_SCHEMA)
         .csv(raw_path)
     )

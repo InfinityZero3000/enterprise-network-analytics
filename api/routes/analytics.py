@@ -11,6 +11,13 @@ _risk = RiskScoringEngine()
 _ownership = OwnershipAnalyzer()
 
 
+@router.get("/stats")
+def get_global_stats():
+    """Lấy tổng số node và relationship từ Neo4j."""
+    from graph.graph_queries import GraphQueries
+    return GraphQueries.get_global_stats()
+
+
 @router.get("/fraud/alerts")
 def get_fraud_alerts():
     """Chạy tất cả rule-based fraud detection và trả về alerts."""

@@ -53,11 +53,13 @@ def setup_constraints_and_indexes():
     statements = [
         "CREATE CONSTRAINT company_id IF NOT EXISTS FOR (c:Company) REQUIRE c.company_id IS UNIQUE",
         "CREATE CONSTRAINT person_id IF NOT EXISTS FOR (p:Person) REQUIRE p.person_id IS UNIQUE",
+        "CREATE CONSTRAINT address_id IF NOT EXISTS FOR (a:Address) REQUIRE a.address_id IS UNIQUE",
         "CREATE CONSTRAINT transaction_id IF NOT EXISTS FOR (t:Transaction) REQUIRE t.transaction_id IS UNIQUE",
         "CREATE CONSTRAINT industry_code IF NOT EXISTS FOR (i:Industry) REQUIRE i.code IS UNIQUE",
         "CREATE INDEX company_name IF NOT EXISTS FOR (c:Company) ON (c.name)",
         "CREATE INDEX company_tax IF NOT EXISTS FOR (c:Company) ON (c.tax_code)",
-        "CREATE INDEX person_name IF NOT EXISTS FOR (p:Person) ON (p.name)",
+        "CREATE INDEX person_name IF NOT EXISTS FOR (p:Person) ON (p.full_name)",
+        "CREATE INDEX address_text IF NOT EXISTS FOR (a:Address) ON (a.address)",
     ]
     with Neo4jConnection.session() as session:
         for stmt in statements:

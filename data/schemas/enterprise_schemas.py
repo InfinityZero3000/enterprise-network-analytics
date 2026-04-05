@@ -123,6 +123,21 @@ RELATIONSHIP_SPARK_SCHEMA = StructType([
     StructField("is_active", BooleanType(), True),
 ])
 
+PERSON_SPARK_SCHEMA = StructType([
+    StructField("person_id", StringType(), False),
+    StructField("full_name", StringType(), True),
+    StructField("nationality", StringType(), True),
+    StructField("is_pep", BooleanType(), True),
+    StructField("is_sanctioned", BooleanType(), True),
+])
+
+ADDRESS_SPARK_SCHEMA = StructType([
+    StructField("address_id", StringType(), False),
+    StructField("address", StringType(), True),
+    StructField("name", StringType(), True),
+    StructField("country", StringType(), True),
+])
+
 TRANSACTION_SPARK_SCHEMA = StructType([
     StructField("transaction_id", StringType(), False),
     StructField("from_company_id", StringType(), False),
@@ -133,4 +148,91 @@ TRANSACTION_SPARK_SCHEMA = StructType([
     StructField("transaction_type", StringType(), True),
     StructField("description", StringType(), True),
     StructField("is_flagged", BooleanType(), True),
+])
+
+# ─── Panama/Bahamas/Paradise Papers raw schemas ─────────────────────────────
+
+PANAMA_ENTITIES_SPARK_SCHEMA = StructType([
+    StructField("node_id", StringType(), False),
+    StructField("name", StringType(), True),
+    StructField("original_name", StringType(), True),
+    StructField("former_name", StringType(), True),
+    StructField("jurisdiction", StringType(), True),
+    StructField("jurisdiction_description", StringType(), True),
+    StructField("company_type", StringType(), True),
+    StructField("address", StringType(), True),
+    StructField("internal_id", StringType(), True),
+    StructField("incorporation_date", StringType(), True),
+    StructField("inactivation_date", StringType(), True),
+    StructField("struck_off_date", StringType(), True),
+    StructField("dorm_date", StringType(), True),
+    StructField("status", StringType(), True),
+    StructField("service_provider", StringType(), True),
+    StructField("ibcRUC", StringType(), True),
+    StructField("country_codes", StringType(), True),
+    StructField("countries", StringType(), True),
+    StructField("sourceID", StringType(), True),
+    StructField("valid_until", StringType(), True),
+    StructField("note", StringType(), True),
+])
+
+PANAMA_OFFICERS_SPARK_SCHEMA = StructType([
+    StructField("node_id", StringType(), False),
+    StructField("name", StringType(), True),
+    StructField("countries", StringType(), True),
+    StructField("country_codes", StringType(), True),
+    StructField("sourceID", StringType(), True),
+    StructField("valid_until", StringType(), True),
+    StructField("note", StringType(), True),
+])
+
+PANAMA_INTERMEDIARIES_SPARK_SCHEMA = StructType([
+    StructField("node_id", StringType(), False),
+    StructField("name", StringType(), True),
+    StructField("status", StringType(), True),
+    StructField("internal_id", StringType(), True),
+    StructField("address", StringType(), True),
+    StructField("countries", StringType(), True),
+    StructField("country_codes", StringType(), True),
+    StructField("sourceID", StringType(), True),
+    StructField("valid_until", StringType(), True),
+    StructField("note", StringType(), True),
+])
+
+PANAMA_OTHERS_SPARK_SCHEMA = StructType([
+    StructField("node_id", StringType(), False),
+    StructField("name", StringType(), True),
+    StructField("type", StringType(), True),
+    StructField("incorporation_date", StringType(), True),
+    StructField("struck_off_date", StringType(), True),
+    StructField("closed_date", StringType(), True),
+    StructField("jurisdiction", StringType(), True),
+    StructField("jurisdiction_description", StringType(), True),
+    StructField("countries", StringType(), True),
+    StructField("country_codes", StringType(), True),
+    StructField("sourceID", StringType(), True),
+    StructField("valid_until", StringType(), True),
+    StructField("note", StringType(), True),
+])
+
+PANAMA_ADDRESSES_SPARK_SCHEMA = StructType([
+    StructField("node_id", StringType(), False),
+    StructField("address", StringType(), True),
+    StructField("name", StringType(), True),
+    StructField("countries", StringType(), True),
+    StructField("country_codes", StringType(), True),
+    StructField("sourceID", StringType(), True),
+    StructField("valid_until", StringType(), True),
+    StructField("note", StringType(), True),
+])
+
+PANAMA_RELATIONSHIPS_SPARK_SCHEMA = StructType([
+    StructField("node_id_start", StringType(), False),
+    StructField("node_id_end", StringType(), False),
+    StructField("rel_type", StringType(), True),
+    StructField("link", StringType(), True),
+    StructField("status", StringType(), True),
+    StructField("start_date", StringType(), True),
+    StructField("end_date", StringType(), True),
+    StructField("sourceID", StringType(), True),
 ])

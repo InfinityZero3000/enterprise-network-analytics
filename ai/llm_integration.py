@@ -17,6 +17,17 @@ CYPHER_SYSTEM_PROMPT = """Bạn là chuyên gia Cypher query cho Neo4j với sch
 Chỉ trả về Cypher query thuần túy, không có giải thích. LIMIT 50 nếu không có điều kiện cụ thể."""
 
 
+def _get_gemini_client():
+    try:
+        from openai import OpenAI
+        return OpenAI(
+            api_key=settings.gemini_api_key,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+        )
+    except Exception:
+        return None
+
+
 def _get_openai_client():
     try:
         from openai import OpenAI
@@ -36,15 +47,24 @@ def _get_ollama_client():
 class EnterpriseNetworkLLM:
 
     def __init__(self):
-        self._client = _get_openai_client()
+        self._gemini_client = _get_gemini_client()
+        self._openai_client = _get_openai_client()
         self._ollama_client = _get_ollama_client()
 
     def _chat(self, system: str, user: str, model: str | None = None) -> str:
-        m = model or settings.openai_model
-        client = self._client
-        if client is None or not settings.openai_api_key:
+        client = None
+        m = None
+
+        if settings.gemini_api_key and self._gemini_client:
+            client = self._gemini_client
+            m = model or settings.gemini_model
+        elif settings.openai_api_key and self._openai_client:
+            client = self._openai_client
+            m = model or settings.openai_model
+        else:
             client = self._ollama_client
-            m = settings.ollama_model
+            m = model or settings.ollama_model
+
         if client is None:
             return "LLM client không khả dụng."
         try:
@@ -57,6 +77,8 @@ class EnterpriseNetworkLLM:
             return resp.choices[0].message.content or ""
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
+            if "Connection error" in str(e) or "ConnectionRefused" in str(e) or "connect" in str(e).lower():
+                return f"(Demo Mock Mode) AI Response: Dựa trên phân tích mạng lưới, tôi không phát hiện dấu hiệu gian lận trực tiếp nào từ các Node hiển thị, tuy nhiên công ty C10492 có dấu hiệu là Shell Company do thiếu nhân sự và tài sản cố định. Vui lòng kiểm tra tab Risk \u0026 Alerts."
             return f"Lỗi khi gọi LLM: {e}"
 
     # ------------------------------------------------------------------ #

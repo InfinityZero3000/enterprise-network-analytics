@@ -8,6 +8,19 @@ from config.neo4j_config import Neo4jConnection
 class GraphQueries:
 
     @staticmethod
+    def get_global_stats() -> dict:
+        """Thống kê tổng quan mạng lưới."""
+        cypher = """
+        MATCH (n) WITH count(n) AS total_nodes
+        MATCH ()-[r]->() RETURN total_nodes, count(r) AS total_rels
+        """
+        with Neo4jConnection.session() as s:
+            result = s.run(cypher).single()
+            if result:
+                return {"total_nodes": result["total_nodes"], "total_rels": result["total_rels"]}
+            return {"total_nodes": 0, "total_rels": 0}
+
+    @staticmethod
     def get_ownership_chain(company_id: str, max_depth: int = 5) -> list[dict]:
         """Chuỗi sở hữu ngược (upstream)."""
         cypher = """

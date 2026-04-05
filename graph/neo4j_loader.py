@@ -24,16 +24,37 @@ SET i.name = row.industry_name
 MERGE (c)-[:BELONGS_TO]->(i)
 """
 
+MERGE_PERSON = """
+UNWIND $batch AS row
+MERGE (p:Person {person_id: row.person_id})
+SET p.full_name = row.full_name,
+    p.nationality = row.nationality,
+    p.is_pep = row.is_pep,
+    p.is_sanctioned = row.is_sanctioned,
+    p.updated_at = datetime()
+"""
+
+MERGE_ADDRESS = """
+UNWIND $batch AS row
+MERGE (a:Address {address_id: row.address_id})
+SET a.address = row.address,
+    a.name = row.name,
+    a.country = row.country,
+    a.updated_at = datetime()
+"""
+
 MERGE_RELATIONSHIP = """
 UNWIND $batch AS row
 CALL {
     WITH row
     MATCH (source) WHERE
         (source:Company AND source.company_id = row.source_id) OR
-        (source:Person  AND source.person_id  = row.source_id)
+        (source:Person  AND source.person_id  = row.source_id) OR
+        (source:Address AND source.address_id = row.source_id)
     MATCH (target) WHERE
         (target:Company AND target.company_id = row.target_id) OR
-        (target:Person  AND target.person_id  = row.target_id)
+        (target:Person  AND target.person_id  = row.target_id) OR
+        (target:Address AND target.address_id = row.target_id)
     MERGE (source)-[r:RELATIONSHIP {rel_type: row.rel_type}]->(target)
     SET r.ownership_percent = row.ownership_percent,
         r.ownership_tier    = row.ownership_tier,
@@ -47,6 +68,12 @@ CALL {
 class Neo4jLoader:
     def load_companies(self, df: DataFrame) -> int:
         return self._load(df, MERGE_COMPANY, "Company")
+
+    def load_persons(self, df: DataFrame) -> int:
+        return self._load(df, MERGE_PERSON, "Person")
+
+    def load_addresses(self, df: DataFrame) -> int:
+        return self._load(df, MERGE_ADDRESS, "Address")
 
     def load_relationships(self, df: DataFrame) -> int:
         return self._load(df, MERGE_RELATIONSHIP, "Relationship")
