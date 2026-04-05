@@ -80,7 +80,7 @@ export default function GraphExplorer({ lang, onSummaryChange }: Props) {
 
   useEffect(() => {
     if (fgRef.current && (data.nodes.length || data.links.length)) {
-      fgRef.current.d3Force('charge').strength(-repulsionStrength);
+      fgRef.current.d3Force('charge').strength(-repulsionStrength).distanceMax(8000);
       fgRef.current.d3Force('link').distance(linkDistance);
       if (!freezeLayout && document.documentElement.getAttribute('data-theme')) {
         setTimeout(() => fgRef.current?.d3ReheatSimulation(), 50);
@@ -218,11 +218,11 @@ export default function GraphExplorer({ lang, onSummaryChange }: Props) {
 
   const handleExpandGraph = () => {
     setRepulsionStrength(prev => {
-      const newVal = prev >= 800 ? (Number(localStorage.getItem('app-graph-repulsion')) || 150) : 1000;
+      const newVal = prev >= 2000 ? (Number(localStorage.getItem('app-graph-repulsion')) || 150) : 3000;
       return newVal;
     });
     setLinkDistance(prev => {
-      const newVal = prev >= 100 ? (Number(localStorage.getItem('app-graph-link-dist')) || 30) : 150;
+      const newVal = prev >= 200 ? (Number(localStorage.getItem('app-graph-link-dist')) || 30) : 350;
       return newVal;
     });
     if (!freezeLayout) {
@@ -270,9 +270,9 @@ export default function GraphExplorer({ lang, onSummaryChange }: Props) {
         </button>
         <button
           onClick={handleExpandGraph}
-          style={{ padding: '0.6rem 0.8rem', background: repulsionStrength >= 800 ? 'var(--accent-primary)' : 'var(--bg-surface-hover)', color: repulsionStrength >= 800 ? 'white' : 'var(--text-primary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', cursor: 'pointer' }}
+          style={{ padding: '0.6rem 0.8rem', background: repulsionStrength >= 2000 ? 'var(--accent-primary)' : 'var(--bg-surface-hover)', color: repulsionStrength >= 2000 ? 'white' : 'var(--text-primary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', cursor: 'pointer' }}
         >
-          {repulsionStrength >= 800 ? t.graphCollapse : t.graphExpand}
+          {repulsionStrength >= 2000 ? t.graphCollapse : t.graphExpand}
         </button>
         <button
           onClick={clearFocus}
