@@ -1,54 +1,36 @@
 import { useRef, useEffect, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 
-// Generate some nice dummy graph data representing enterprise network
-const generateData = () => {
-  const nodes = [];
-  const links = [];
-  const NUM_NODES = 120;
-  
-  // Create Main hubs (Companies)
-  for (let i = 0; i < 5; i++) {
-    nodes.push({ id: `hub-${i}`, group: 1, name: `Corp Hub ${i}`, val: 8 });
-  }
-
-  // Create Sub nodes
-  for (let i = 0; i < NUM_NODES; i++) {
-    const isRisky = Math.random() > 0.9;
-    nodes.push({ 
-      id: i.toString(), 
-      group: isRisky ? 3 : 2, // 3 is risk
-      name: isRisky ? `Shell Corp ${i}` : `Entity ${i}`,
-      val: Math.random() * 3 + 1
-    });
-
-    // Link to a hub
-    links.push({
-      source: i.toString(),
-      target: `hub-${Math.floor(Math.random() * 5)}`,
-      value: Math.random() > 0.5 ? 2 : 1
-    });
-
-    // Link to another random node
-    if (Math.random() > 0.7) {
-      links.push({
-        source: i.toString(),
-        target: Math.floor(Math.random() * i).toString(),
-        value: 1
-      });
-    }
-  }
-
-  return { nodes, links };
-};
-
 export default function GraphExplorer() {
   const [data, setData] = useState<{nodes: any[], links: any[]}>({ nodes: [], links: [] });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const fetchGraphData = (type = 'default') => {
+    let url = "http://localhost:8000/api/v1/graph/network?limit=250";
+    if (type === 'pagerank') {
+      url += "&order_by=pagerank";
+    }
+
+    fetch(url)
+      .then(res => res.json())
+      .then(json => {
+        // Ensure values are numbers
+        json.nodes.forEach((n: any) => { 
+            if (!n.val) n.val = 3; 
+            // Scale up pagerank nodes if present
+            if (n.pagerank && n.pagerank > 0) {
+               n.val = Math.max(3, n.pagerank * 50);
+            }
+        });
+        json.links.forEach((l: any) => l.value = 1);
+        setData(json);
+      })
+      .catch(err => console.error("Error fetching graph data:", err));
+  };
+
   useEffect(() => {
-    setData(generateData());
+    fetchGraphData();
   }, []);
 
   useEffect(() => {
@@ -78,22 +60,28 @@ export default function GraphExplorer() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '1rem' }}>
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-        <button style={{ 
+        <button 
+          onClick={() => fetchGraphData('default')}
+          style={{ 
           padding: '0.5rem 1rem', 
           background: 'var(--bg-surface-hover)', 
           color: 'var(--text-primary)',
           borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--border-light)'
+          border: '1px solid var(--border-light)',
+          cursor: 'pointer'
         }}>
           Apply Layout Physics
         </button>
-        <button style={{ 
+        <button 
+          onClick={() => fetchGraphData('pagerank')}
+          style={{ 
           padding: '0.5rem 1rem', 
           background: 'var(--accent-primary)', 
           color: 'white',
           borderRadius: 'var(--radius-md)',
           border: 'none',
-          fontWeight: 600
+          fontWeight: 600,
+          cursor: 'pointer'
         }}>
           Run PageRank
         </button>

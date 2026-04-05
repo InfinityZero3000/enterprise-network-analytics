@@ -35,6 +35,43 @@ def get_communities():
     return _algo.run_community_detection(write=False)
 
 
+@router.get("/network")
+def get_network_graph(
+    limit: int = Query(default=150, ge=10, le=1000), 
+    order_by: str = Query(default=None)
+):
+    """Lấy dữ liệu đồ thị dạng Nodes/Links để vẽ trên UI."""
+    from config.neo4j_config import Neo4jConnection
+    
+    order_clause = ""
+    if order_by == "pagerank":
+        order_clause = "ORDER BY source.pagerank_score DESC"
+        
+    cypher = f"""
+    MATCH (source:Entity)-[r:RELATIONSHIP]->(target:Entity)
+    WITH source, r, target
+    {order_clause}
+    LIMIT $limit
+    WITH collect(source) + collect(target) as allNodes, collect({{source: source.node_id, target: target.node_id, label: r.rel_type}}) as links
+    UNWIND allNodes as n
+    WITH DISTINCT n, links
+    RETURN 
+        collect({{
+            id: n.node_id, 
+            name: coalesce(n.name, n.full_name, n.address, n.node_id), 
+            group: CASE WHEN "Company" IN labels(n) THEN 1 WHEN "Person" IN labels(n) THEN 2 ELSE 3 END,
+            val: CASE WHEN n.pagerank_score IS NOT NULL THEN n.pagerank_score * 20 ELSE 5 END,
+            pagerank: n.pagerank_score
+        }}) as nodes,
+        links
+    """
+    with Neo4jConnection.session() as s:
+        record = s.run(cypher, limit=limit).single()
+        if record:
+            return {"nodes": record["nodes"], "links": record["links"]}
+        return {"nodes": [], "links": []}
+
+
 @router.get("/circular-ownership")
 def get_all_circular():
     """Tìm tất cả vòng tròn sở hữu trong toàn bộ graph."""
