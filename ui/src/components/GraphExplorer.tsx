@@ -218,11 +218,11 @@ export default function GraphExplorer({ lang, onSummaryChange }: Props) {
 
   const handleExpandGraph = () => {
     setRepulsionStrength(prev => {
-      const newVal = prev >= 400 ? (Number(localStorage.getItem('app-graph-repulsion')) || 150) : 400;
+      const newVal = prev >= 800 ? (Number(localStorage.getItem('app-graph-repulsion')) || 150) : 1000;
       return newVal;
     });
     setLinkDistance(prev => {
-      const newVal = prev >= 80 ? (Number(localStorage.getItem('app-graph-link-dist')) || 30) : 80;
+      const newVal = prev >= 100 ? (Number(localStorage.getItem('app-graph-link-dist')) || 30) : 150;
       return newVal;
     });
     if (!freezeLayout) {
@@ -270,9 +270,9 @@ export default function GraphExplorer({ lang, onSummaryChange }: Props) {
         </button>
         <button
           onClick={handleExpandGraph}
-          style={{ padding: '0.6rem 0.8rem', background: repulsionStrength >= 400 ? 'var(--accent-primary)' : 'var(--bg-surface-hover)', color: repulsionStrength >= 400 ? 'white' : 'var(--text-primary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', cursor: 'pointer' }}
+          style={{ padding: '0.6rem 0.8rem', background: repulsionStrength >= 800 ? 'var(--accent-primary)' : 'var(--bg-surface-hover)', color: repulsionStrength >= 800 ? 'white' : 'var(--text-primary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', cursor: 'pointer' }}
         >
-          {repulsionStrength >= 400 ? t.graphCollapse : t.graphExpand}
+          {repulsionStrength >= 800 ? t.graphCollapse : t.graphExpand}
         </button>
         <button
           onClick={clearFocus}

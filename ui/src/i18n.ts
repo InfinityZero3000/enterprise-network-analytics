@@ -138,7 +138,7 @@ export const translations = {
     graphUnfreeze: 'Bỏ đóng băng',
     graphZoomFit: 'Căn vừa màn hình',
     graphClearFocus: 'Xóa focus',
-    graphExpand: 'Dang rộng đồ thị',
+    graphExpand: 'Mở rộng đồ thị',
     graphCollapse: 'Thu gọn đồ thị',
     graphResultCount: 'Hiển thị',
     graphNodes: 'nút',
