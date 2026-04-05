@@ -1,0 +1,1 @@
+docker exec -i ena-neo4j cypher-shell -u neo4j -p ena_password "MATCH ()-[r]->() RETURN count(r);"

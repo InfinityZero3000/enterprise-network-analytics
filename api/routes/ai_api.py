@@ -19,6 +19,7 @@ def _get_embedding() -> GraphEmbedding:
 class AskRequest(BaseModel):
     question: str
     company_id: str | None = None
+    page_context: str | None = None
 
 
 class NLCypherRequest(BaseModel):
@@ -37,7 +38,7 @@ class SimilarRequest(BaseModel):
 @router.post("/ask")
 def ask(req: AskRequest):
     """Hỏi đáp tự nhiên về mạng lưới doanh nghiệp bằng AI."""
-    answer = _llm.ask(req.question, company_id=req.company_id)
+    answer = _llm.ask(req.question, company_id=req.company_id, page_context=req.page_context)
     return {"question": req.question, "answer": answer}
 
 

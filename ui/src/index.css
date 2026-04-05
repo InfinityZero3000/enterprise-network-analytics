@@ -1,9 +1,11 @@
 :root {
-  /* Color Palette - Premium Dark Theme */
+  /* Color Palette - Premium Dark Theme (Default) */
   --bg-base: #0f172a;
   --bg-surface: #1e293b;
   --bg-surface-hover: #334155;
   --bg-surface-elevated: #0f1623;
+  --bg-row-muted: rgba(15, 23, 42, 0.45);
+  --bg-row-emphasis: rgba(15, 22, 35, 0.7);
 
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
@@ -32,6 +34,63 @@
   --transition-normal: 250ms ease;
 
   color-scheme: dark;
+}
+
+[data-theme="light"] {
+  /* Color Palette - Light Theme */
+  --bg-base: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #f1f5f9;
+  --bg-surface-elevated: #e2e8f0;
+  --bg-row-muted: #f8fafc;
+  --bg-row-emphasis: #f1f5f9;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  --accent-primary: #2563eb;
+  --accent-primary-hover: #1d4ed8;
+  --accent-secondary: #7c3aed;
+  --accent-success: #059669;
+  --accent-warning: #d97706;
+  --accent-danger: #dc2626;
+
+  --border-light: rgba(0, 0, 0, 0.08);
+  --border-focus: rgba(37, 99, 235, 0.5);
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+  color-scheme: light;
+}
+
+[data-theme="light"] .level-chip.level-3,
+[data-theme="light"] .level-chip.high,
+[data-theme="light"] .level-chip.critical {
+  color: #991b1b;
+  border-color: rgba(185, 28, 28, 0.55);
+  background: rgba(220, 38, 38, 0.16);
+}
+
+[data-theme="light"] .level-chip.level-2,
+[data-theme="light"] .level-chip.medium {
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+[data-theme="light"] .level-chip.level-1,
+[data-theme="light"] .level-chip.low,
+[data-theme="light"] .level-chip.info {
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+[data-theme="light"] .dashboard-hero {
+  background: linear-gradient(120deg, rgba(37, 99, 235, 0.05), rgba(248, 250, 252, 0.8));
 }
 
 * {

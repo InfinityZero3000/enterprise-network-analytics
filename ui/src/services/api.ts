@@ -1,21 +1,35 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+const getApiBaseUrl = () => {
+  const url = localStorage.getItem('app-api-url') || 'http://localhost:8000';
+  return `${url}/api/v1`;
+};
 
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-export const getFraudAlerts = async () => {
-  const response = await apiClient.get('/analytics/fraud/alerts');
+// Update base URL dynamically when requests are made if it changed
+apiClient.interceptors.request.use((config) => {
+  config.baseURL = getApiBaseUrl();
+  return config;
+});
+
+export const getFraudAlerts = async (limit?: number) => {
+  const response = await apiClient.get('/analytics/fraud/alerts', {
+    params: limit ? { limit } : {},
+  });
   return response.data;
 };
 
-export const askAi = async (question: string) => {
-  const response = await apiClient.post('/ai/ask', { question });
+export const askAi = async (question: string, pageContext?: string) => {
+  const response = await apiClient.post('/ai/ask', {
+    question,
+    page_context: pageContext,
+  });
   return response.data;
 };
 

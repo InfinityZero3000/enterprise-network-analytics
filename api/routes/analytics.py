@@ -19,7 +19,7 @@ def get_global_stats():
 
 
 @router.get("/fraud/alerts")
-def get_fraud_alerts():
+def get_fraud_alerts(limit: int = Query(default=100, ge=1, le=500)):
     """Chạy tất cả rule-based fraud detection và trả về alerts."""
     alerts = _fraud.run_all_rules()
     return [
@@ -32,7 +32,7 @@ def get_fraud_alerts():
             "description": a.description,
             "evidence": a.evidence,
         }
-        for a in alerts
+        for a in alerts[:limit]
     ]
 
 

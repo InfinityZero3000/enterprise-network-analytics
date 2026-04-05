@@ -1,4 +1,6 @@
-import { useRef, useEffect, useMemo, useState } from 'react';
+import os
+
+content = """import { useRef, useEffect, useMemo, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { translations, type Lang } from '../i18n';
 
@@ -15,6 +17,7 @@ export default function GraphExplorer({ lang, onSummaryChange }: Props) {
   const [minDegree, setMinDegree] = useState(0);
   const [freezeLayout, setFreezeLayout] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
 
@@ -202,12 +205,16 @@ export default function GraphExplorer({ lang, onSummaryChange }: Props) {
           n.fy = n.y;
         }
       }
+      fgRef.current.d3AlphaDecay(1);
+      fgRef.current.d3VelocityDecay(1);
     } else {
       for (const n of data.nodes) {
         n.fx = undefined;
         n.fy = undefined;
       }
-      setTimeout(() => fgRef.current?.d3ReheatSimulation(), 50);
+      fgRef.current.d3AlphaDecay(0.0228);
+      fgRef.current.d3VelocityDecay(0.4);
+      fgRef.current.d3ReheatSimulation();
     }
   }, [freezeLayout, data.nodes]);
 
@@ -216,29 +223,16 @@ export default function GraphExplorer({ lang, onSummaryChange }: Props) {
     fgRef.current.zoomToFit(500, 90);
   };
 
-  const handleExpandGraph = () => {
-    setRepulsionStrength(prev => {
-      const newVal = prev >= 400 ? (Number(localStorage.getItem('app-graph-repulsion')) || 150) : 400;
-      return newVal;
-    });
-    setLinkDistance(prev => {
-      const newVal = prev >= 80 ? (Number(localStorage.getItem('app-graph-link-dist')) || 30) : 80;
-      return newVal;
-    });
-    if (!freezeLayout) {
-      setTimeout(() => fgRef.current?.d3ReheatSimulation(), 50);
-    }
-  };
-
   const clearFocus = () => {
     setSelectedNodeId(null);
+    setHoveredNodeId(null);
     setSearch('');
     setMinDegree(0);
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '1rem' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', gap: '0.7rem', alignItems: 'center' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: '0.7rem', alignItems: 'center' }}>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -267,12 +261,6 @@ export default function GraphExplorer({ lang, onSummaryChange }: Props) {
           style={{ padding: '0.6rem 0.8rem', background: 'var(--bg-surface-hover)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', cursor: 'pointer' }}
         >
           {t.graphZoomFit}
-        </button>
-        <button
-          onClick={handleExpandGraph}
-          style={{ padding: '0.6rem 0.8rem', background: repulsionStrength >= 400 ? 'var(--accent-primary)' : 'var(--bg-surface-hover)', color: repulsionStrength >= 400 ? 'white' : 'var(--text-primary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', cursor: 'pointer' }}
-        >
-          {repulsionStrength >= 400 ? t.graphCollapse : t.graphExpand}
         </button>
         <button
           onClick={clearFocus}
@@ -310,8 +298,6 @@ export default function GraphExplorer({ lang, onSummaryChange }: Props) {
         {data.nodes.length > 0 && (
           <ForceGraph2D
             ref={fgRef}
-            d3AlphaDecay={freezeLayout ? 1 : 0.0228}
-            d3VelocityDecay={freezeLayout ? 1 : 0.4}
             width={dimensions.width}
             height={dimensions.height}
             graphData={filteredData}
@@ -330,6 +316,7 @@ export default function GraphExplorer({ lang, onSummaryChange }: Props) {
             }}
             linkWidth={link => link.value}
             backgroundColor={document.documentElement.getAttribute('data-theme') === 'light' ? '#ffffff' : '#0f1623'}
+            onNodeHover={(node: any) => setHoveredNodeId(node ? String(node.id) : null)}
             onNodeClick={(node: any) => setSelectedNodeId(String(node.id))}
             nodeCanvasObjectMode={() => 'after'}
             nodeCanvasObject={(node, ctx, globalScale) => {
@@ -350,3 +337,6 @@ export default function GraphExplorer({ lang, onSummaryChange }: Props) {
     </div>
   );
 }
+"""
+with open('src/components/GraphExplorer.tsx', 'w') as f:
+    f.write(content)

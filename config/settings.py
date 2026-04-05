@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     # ── AI ────────────────────────────────────────
     gemini_api_key: str = Field("", validation_alias="GEMINI_API_KEY")
     gemini_model: str = Field("gemini-1.5-pro", validation_alias="GEMINI_MODEL")
+    groq_api_key: str = Field("", validation_alias="GROQ_API_KEY")
+    groq_model: str = Field("llama-3.3-70b-versatile", validation_alias="GROQ_MODEL")
     openai_api_key: str = Field("", validation_alias="OPENAI_API_KEY")
     openai_model: str = Field("gpt-4o", validation_alias="OPENAI_MODEL")
     ollama_base_url: str = Field("http://localhost:11434", validation_alias="OLLAMA_BASE_URL")

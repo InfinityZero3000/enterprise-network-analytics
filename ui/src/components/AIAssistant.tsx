@@ -1,12 +1,38 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { askAi } from '../services/api';
+import { translations, type Lang } from '../i18n';
 
-export default function AIAssistant() {
+type Props = {
+  lang: Lang;
+  pageContext?: string;
+  compact?: boolean;
+};
+
+export default function AIAssistant({ lang, pageContext, compact = false }: Props) {
+  const t = translations[lang];
   const [query, setQuery] = useState('');
   const [chatLog, setChatLog] = useState<{role: 'user' | 'ai', content: string}[]>([
-    { role: 'ai', content: 'Xin chào, tôi là AI hỗ trợ phân tích mạng lưới doanh nghiệp. Bạn muốn truy vấn gì?' }
+    { role: 'ai', content: t.aiWelcome }
   ]);
   const [loading, setLoading] = useState(false);
+
+  const sanitizeAiText = (text: string): string => {
+    return text
+      // Bold/italic markdown markers
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      // Bullet markers that start with '* '
+      .replace(/^\s*\*\s+/gm, '')
+      // Any remaining lone asterisks
+      .replace(/\*/g, '')
+      .trim();
+  };
+
+  useEffect(() => {
+    if (chatLog.length === 1 && chatLog[0].role === 'ai') {
+      setChatLog([{ role: 'ai', content: t.aiWelcome }]);
+    }
+  }, [lang]);
 
   const handleAsk = async () => {
     if (!query.trim()) return;
@@ -16,10 +42,11 @@ export default function AIAssistant() {
     setLoading(true);
 
     try {
-      const res = await askAi(currentQ);
-      setChatLog(prev => [...prev, { role: 'ai', content: res.answer || 'Completed.' }]);
+      const res = await askAi(currentQ, pageContext);
+      const cleaned = sanitizeAiText(res.answer || 'Completed.');
+      setChatLog(prev => [...prev, { role: 'ai', content: cleaned }]);
     } catch (e) {
-      setChatLog(prev => [...prev, { role: 'ai', content: 'Lỗi kết nối đến AI service. (Demo mode)' }]);
+      setChatLog(prev => [...prev, { role: 'ai', content: t.aiConnectionError }]);
     } finally {
       setLoading(false);
     }
@@ -28,8 +55,15 @@ export default function AIAssistant() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)', overflow: 'hidden' }}>
       <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-light)', background: 'var(--bg-surface-elevated)', fontWeight: 600 }}>
-        Enterprise GenAI Assistant
+        {compact ? t.quickChat : t.aiTitle}
       </div>
+
+      {pageContext && (
+        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-light)', background: 'rgba(59, 130, 246, 0.08)' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>{t.contextNow}</div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>{pageContext}</div>
+        </div>
+      )}
       
       <div style={{ flex: 1, padding: '1rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {chatLog.map((msg, i) => (
@@ -49,7 +83,7 @@ export default function AIAssistant() {
         {loading && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
              <div style={{ padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', background: 'var(--bg-base)', color: 'var(--text-muted)' }}>
-               Agent is thinking...
+               {t.aiThinking}
              </div>
           </div>
         )}
@@ -61,7 +95,7 @@ export default function AIAssistant() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
-          placeholder="Hỏi về sở hữu chéo, độ rủi ro..." 
+          placeholder={compact ? t.askAboutView : t.aiPlaceholder}
           style={{ 
             flex: 1, 
             padding: '0.75rem', 
@@ -75,7 +109,7 @@ export default function AIAssistant() {
         <button 
           onClick={handleAsk}
           style={{ padding: '0 1.5rem', background: 'var(--accent-primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600 }}>
-          Gửi
+          {t.aiSend}
         </button>
       </div>
     </div>
