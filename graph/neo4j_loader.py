@@ -45,23 +45,14 @@ SET a.address = row.address,
 
 MERGE_RELATIONSHIP = """
 UNWIND $batch AS row
-CALL {
-    WITH row
-    MATCH (source) WHERE
-        (source:Company AND source.company_id = row.source_id) OR
-        (source:Person  AND source.person_id  = row.source_id) OR
-        (source:Address AND source.address_id = row.source_id)
-    MATCH (target) WHERE
-        (target:Company AND target.company_id = row.target_id) OR
-        (target:Person  AND target.person_id  = row.target_id) OR
-        (target:Address AND target.address_id = row.target_id)
-    MERGE (source)-[r:RELATIONSHIP {rel_type: row.rel_type}]->(target)
-    SET r.ownership_percent = row.ownership_percent,
-        r.ownership_tier    = row.ownership_tier,
-        r.is_controlling    = row.is_controlling,
-        r.is_active         = row.is_active,
-        r.updated_at        = datetime()
-}
+MATCH (source:Entity {node_id: row.source_id})
+MATCH (target:Entity {node_id: row.target_id})
+MERGE (source)-[r:RELATIONSHIP {rel_type: row.rel_type}]->(target)
+SET r.ownership_percent = row.ownership_percent,
+    r.ownership_tier    = row.ownership_tier,
+    r.is_controlling    = row.is_controlling,
+    r.is_active         = row.is_active,
+    r.updated_at        = datetime()
 """
 
 
