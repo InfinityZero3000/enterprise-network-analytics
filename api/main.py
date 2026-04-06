@@ -9,6 +9,10 @@ from config.settings import settings
 from config.neo4j_config import Neo4jConnection, setup_constraints_and_indexes
 
 
+def _split_csv(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Enterprise Network Analytics API ...")
@@ -27,14 +31,27 @@ app = FastAPI(
     description="Phân tích mạng lưới doanh nghiệp — PySpark + Neo4j + Kafka",
     version="1.0.0",
     lifespan=lifespan,
+    root_path=settings.api_root_path,
 )
+
+cors_allow_origins = _split_csv(settings.cors_allow_origins)
+cors_allow_methods = _split_csv(settings.cors_allow_methods)
+cors_allow_headers = _split_csv(settings.cors_allow_headers)
+
+if "*" in cors_allow_origins and settings.cors_allow_credentials:
+    # Browsers reject wildcard origin when credentials are enabled.
+    logger.warning("CORS_ALLOW_CREDENTIALS=true is not compatible with CORS_ALLOW_ORIGINS=*. Disabling credentials.")
+    cors_allow_credentials = False
+else:
+    cors_allow_credentials = settings.cors_allow_credentials
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_allow_origins or ["*"],
+    allow_origin_regex=settings.cors_allow_origin_regex or None,
+    allow_credentials=cors_allow_credentials,
+    allow_methods=cors_allow_methods or ["*"],
+    allow_headers=cors_allow_headers or ["*"],
 )
 
 

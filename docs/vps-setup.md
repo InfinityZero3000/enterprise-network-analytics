@@ -142,6 +142,48 @@ sudo ufw status
 
 ---
 
+## Bước 6.1 — Cấu Hình CORS + API Gateway (Khuyến Nghị)
+
+Backend đã hỗ trợ CORS qua biến môi trường trong `.env`:
+
+```bash
+# Chỉ cho phép UI từ Vercel và localhost dev
+CORS_ALLOW_ORIGINS=https://your-ui.vercel.app,http://localhost:5173
+CORS_ALLOW_CREDENTIALS=false
+CORS_ALLOW_METHODS=*
+CORS_ALLOW_HEADERS=*
+
+# Nếu gateway mount API dưới prefix /api thì bật root path
+# API_ROOT_PATH=/api
+```
+
+Áp dụng cấu hình mới:
+
+```bash
+docker compose up -d --build api
+docker compose logs -f api --tail 100
+```
+
+Thiết lập Nginx gateway trên VPS:
+
+```bash
+sudo apt install -y nginx certbot python3-certbot-nginx
+sudo cp docs/nginx-api-gateway.conf /etc/nginx/sites-available/ena-api
+sudo ln -sf /etc/nginx/sites-available/ena-api /etc/nginx/sites-enabled/ena-api
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+Sau đó cấp SSL:
+
+```bash
+sudo certbot --nginx -d api.example.com
+```
+
+> Lưu ý: cập nhật `server_name` trong file `docs/nginx-api-gateway.conf` trước khi copy sang `/etc/nginx`.
+
+---
+
 ## Bước 7 — Chạy Pipeline Thủ Công (Tuỳ Chọn)
 
 Nếu muốn chạy batch pipeline trực tiếp (không qua Airflow):

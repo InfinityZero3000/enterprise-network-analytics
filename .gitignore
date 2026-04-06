@@ -30,6 +30,12 @@ ENV/
 .env.*
 !.env.example
 
+# Node / Frontend dependencies and build cache
+node_modules/
+**/node_modules/
+ui/.vite/
+ui/dist/
+
 # ========================
 # Jupyter Notebooks
 # ========================
@@ -134,5 +140,6 @@ Thumbs.db
 secrets/
 credentials/
 config/ai_keys_cache.json
+dataset/
 
 commands.md
