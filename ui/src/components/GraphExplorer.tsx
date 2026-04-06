@@ -4,19 +4,26 @@ import { translations, type Lang } from '../i18n';
 
 type Props = {
   lang: Lang;
+  initialSearch?: string;
   onSummaryChange?: (summary: { nodes: number; links: number; hubs: string[] }) => void;
 };
 
-export default function GraphExplorer({ lang, onSummaryChange }: Props) {
+export default function GraphExplorer({ lang, initialSearch = '', onSummaryChange }: Props) {
   const t = translations[lang];
   const [data, setData] = useState<{nodes: any[], links: any[]}>({ nodes: [], links: [] });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch);
   const [minDegree, setMinDegree] = useState(0);
   const [freezeLayout, setFreezeLayout] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (initialSearch) {
+      setSearch(initialSearch);
+    }
+  }, [initialSearch]);
 
   const [repulsionStrength, setRepulsionStrength] = useState(() => Number(localStorage.getItem('app-graph-repulsion')) || 150);
   const [linkDistance, setLinkDistance] = useState(() => Number(localStorage.getItem('app-graph-link-dist')) || 30);

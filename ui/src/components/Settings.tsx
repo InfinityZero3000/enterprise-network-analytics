@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { translations, type Lang } from '../i18n';
+import { updateAiSettings } from '../services/api';
 
 interface SettingsProps {
   lang: Lang;
@@ -24,7 +25,7 @@ export default function Settings({ lang }: SettingsProps) {
     window.dispatchEvent(new Event('app-settings-changed'));
   }, [nodeRepulsion, linkDistance]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     localStorage.setItem('app-api-url', apiUrl);
     localStorage.setItem('app-graph-repulsion', nodeRepulsion.toString());
     localStorage.setItem('app-graph-link-dist', linkDistance.toString());
@@ -33,6 +34,18 @@ export default function Settings({ lang }: SettingsProps) {
     localStorage.setItem('app-ai-groq-key', groqApiKey);
     localStorage.setItem('app-ai-groq-model', groqModel);
     localStorage.setItem('app-ai-openai-key', openaiApiKey);
+    
+    try {
+      await updateAiSettings({
+        gemini_api_key: geminiApiKey,
+        gemini_model: geminiModel,
+        groq_api_key: groqApiKey,
+        groq_model: groqModel,
+        openai_api_key: openaiApiKey
+      });
+    } catch (e) {
+      console.error("Failed to sync AI keys to backend", e);
+    }
     
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3000);

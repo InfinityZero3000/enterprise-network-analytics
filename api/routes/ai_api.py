@@ -21,6 +21,46 @@ class AskRequest(BaseModel):
     company_id: str | None = None
     page_context: str | None = None
 
+class AISettingsRequest(BaseModel):
+    gemini_api_key: str | None = None
+    gemini_model: str | None = None
+    groq_api_key: str | None = None
+    groq_model: str | None = None
+    openai_api_key: str | None = None
+    openai_model: str | None = None
+
+@router.post("/settings")
+def update_ai_settings(req: AISettingsRequest):
+    from config.settings import settings
+    from dotenv import set_key
+    import os
+    env_file = ".env"
+    if not os.path.exists(env_file):
+        open(env_file, 'a').close()
+    
+    if req.gemini_api_key is not None:
+        settings.gemini_api_key = req.gemini_api_key
+        set_key(env_file, "GEMINI_API_KEY", req.gemini_api_key)
+    if req.gemini_model is not None:
+        settings.gemini_model = req.gemini_model
+        set_key(env_file, "GEMINI_MODEL", req.gemini_model)
+    if req.groq_api_key is not None:
+        settings.groq_api_key = req.groq_api_key
+        set_key(env_file, "GROQ_API_KEY", req.groq_api_key)
+    if req.groq_model is not None:
+        settings.groq_model = req.groq_model
+        set_key(env_file, "GROQ_MODEL", req.groq_model)
+    if req.openai_api_key is not None:
+        settings.openai_api_key = req.openai_api_key
+        set_key(env_file, "OPENAI_API_KEY", req.openai_api_key)
+    if req.openai_model is not None:
+        settings.openai_model = req.openai_model
+        set_key(env_file, "OPENAI_MODEL", req.openai_model)
+        
+    global _llm
+    _llm = EnterpriseNetworkLLM()
+    return {"status": "ok", "message": "AI settings updated and LLM re-initialized."}
+
 
 class NLCypherRequest(BaseModel):
     natural_language: str

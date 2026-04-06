@@ -5,9 +5,10 @@ import { getAlertDescription, translations, type Lang } from '../i18n';
 type Props = {
   lang: Lang;
   onSummaryChange?: (summary: { count: number; topTypes: string[] }) => void;
+  onInvestigate?: (entityName: string, alertType: string) => void;
 };
 
-export default function AlertsRisk({ lang, onSummaryChange }: Props) {
+export default function AlertsRisk({ lang, onSummaryChange, onInvestigate }: Props) {
   const t = translations[lang];
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,7 +94,12 @@ export default function AlertsRisk({ lang, onSummaryChange }: Props) {
                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{getAlertDescription(a.description, lang)}</div>
               </div>
               <div>
-                <button style={{ padding: '0.5rem 1rem', background: 'var(--bg-base)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)' }}>{t.investigate}</button>
+                <button 
+                  onClick={() => onInvestigate?.(a.entity_name, a.alert_type)}
+                  style={{ padding: '0.5rem 1rem', background: 'var(--bg-base)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                >
+                  {t.investigate}
+                </button>
               </div>
             </div>
           ))}

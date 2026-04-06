@@ -33,6 +33,11 @@ export const askAi = async (question: string, pageContext?: string) => {
   return response.data;
 };
 
+export const updateAiSettings = async (settings: any) => {
+  const response = await apiClient.post('/ai/settings', settings);
+  return response.data;
+};
+
 export const getTopEntities = async () => {
   const response = await apiClient.get('/graph/top-entities');
   return response.data;
@@ -40,6 +45,48 @@ export const getTopEntities = async () => {
 
 export const getGlobalStats = async () => {
   const response = await apiClient.get('/analytics/stats');
+  return response.data;
+};
+
+export type CrawlSource = {
+  id: string;
+  name: string;
+  url: string;
+  license: string;
+  data: string[];
+  requires_api_key: boolean;
+  env_var: string | null;
+};
+
+export type CrawlSourcesResponse = {
+  sources: CrawlSource[];
+};
+
+export const listCrawlSources = async (): Promise<CrawlSourcesResponse> => {
+  const response = await apiClient.get('/crawl/sources');
+  return response.data as CrawlSourcesResponse;
+};
+
+export type CrawlRunPayload = {
+  sources: string[];
+  parallel: boolean;
+  source_options?: Record<string, Record<string, unknown>>;
+};
+
+export type CrawlEtlRunPayload = {
+  sources: string[];
+  parallel: boolean;
+  dry_run: boolean;
+  source_options?: Record<string, Record<string, unknown>>;
+};
+
+export const runCrawlSync = async (payload: CrawlRunPayload) => {
+  const response = await apiClient.post('/crawl/run/sync', payload);
+  return response.data;
+};
+
+export const runCrawlEtlSync = async (payload: CrawlEtlRunPayload) => {
+  const response = await apiClient.post('/crawl/etl/run/sync', payload);
   return response.data;
 };
 
