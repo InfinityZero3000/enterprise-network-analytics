@@ -102,3 +102,18 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+import os, json
+cache_file = "config/ai_keys_cache.json"
+if os.path.exists(cache_file):
+    try:
+        with open(cache_file, 'r') as f:
+            cache_data = json.load(f)
+        if "GEMINI_API_KEY" in cache_data: settings.gemini_api_key = cache_data["GEMINI_API_KEY"]
+        if "GEMINI_MODEL" in cache_data: settings.gemini_model = cache_data["GEMINI_MODEL"]
+        if "GROQ_API_KEY" in cache_data: settings.groq_api_key = cache_data["GROQ_API_KEY"]
+        if "GROQ_MODEL" in cache_data: settings.groq_model = cache_data["GROQ_MODEL"]
+        if "OPENAI_API_KEY" in cache_data: settings.openai_api_key = cache_data["OPENAI_API_KEY"]
+        if "OPENAI_MODEL" in cache_data: settings.openai_model = cache_data["OPENAI_MODEL"]
+    except Exception as e:
+        pass

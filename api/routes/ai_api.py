@@ -32,30 +32,42 @@ class AISettingsRequest(BaseModel):
 @router.post("/settings")
 def update_ai_settings(req: AISettingsRequest):
     from config.settings import settings
-    from dotenv import set_key
     import os
-    env_file = ".env"
-    if not os.path.exists(env_file):
-        open(env_file, 'a').close()
+    import json
     
+    cache_file = "config/ai_keys_cache.json"
+    cache_data = {}
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, 'r') as f:
+                cache_data = json.load(f)
+        except Exception:
+            pass
+
     if req.gemini_api_key is not None:
         settings.gemini_api_key = req.gemini_api_key
-        set_key(env_file, "GEMINI_API_KEY", req.gemini_api_key)
+        cache_data["GEMINI_API_KEY"] = req.gemini_api_key
     if req.gemini_model is not None:
         settings.gemini_model = req.gemini_model
-        set_key(env_file, "GEMINI_MODEL", req.gemini_model)
+        cache_data["GEMINI_MODEL"] = req.gemini_model
     if req.groq_api_key is not None:
         settings.groq_api_key = req.groq_api_key
-        set_key(env_file, "GROQ_API_KEY", req.groq_api_key)
+        cache_data["GROQ_API_KEY"] = req.groq_api_key
     if req.groq_model is not None:
         settings.groq_model = req.groq_model
-        set_key(env_file, "GROQ_MODEL", req.groq_model)
+        cache_data["GROQ_MODEL"] = req.groq_model
     if req.openai_api_key is not None:
         settings.openai_api_key = req.openai_api_key
-        set_key(env_file, "OPENAI_API_KEY", req.openai_api_key)
+        cache_data["OPENAI_API_KEY"] = req.openai_api_key
     if req.openai_model is not None:
         settings.openai_model = req.openai_model
-        set_key(env_file, "OPENAI_MODEL", req.openai_model)
+        cache_data["OPENAI_MODEL"] = req.openai_model
+        
+    try:
+        with open(cache_file, 'w') as f:
+            json.dump(cache_data, f)
+    except Exception:
+        pass
         
     global _llm
     _llm = EnterpriseNetworkLLM()
@@ -73,6 +85,13 @@ class ExecuteCypherRequest(BaseModel):
 class SimilarRequest(BaseModel):
     node_id: str
     top_n: int = 10
+
+
+class InvestigationReportRequest(BaseModel):
+    entity_name: str
+    entity_id: str | None = None
+    alert_type: str
+    evidence: str | None = None
 
 
 @router.post("/ask")
@@ -123,3 +142,60 @@ def train_embedding():
     emb = _get_embedding()
     emb.train()
     return {"status": "training_complete"}
+
+
+@router.post("/investigation/report")
+def generate_investigation_report(req: InvestigationReportRequest):
+    """Sinh báo cáo điều tra ngắn gọn dựa trên graph signals + LLM."""
+    from graph.graph_queries import GraphQueries
+
+    subgraph = GraphQueries.get_investigation_subgraph(
+        entity_name=req.entity_name,
+        entity_id=req.entity_id,
+        alert_type=req.alert_type,
+        max_hops=2,
+        limit=120,
+    )
+    risk_path = GraphQueries.get_shortest_path_to_risk(entity_name=req.entity_name, entity_id=req.entity_id, max_depth=6)
+    blast = GraphQueries.get_blast_radius(entity_name=req.entity_name, entity_id=req.entity_id, depth=2)
+
+    context = (
+        f"Entity: {req.entity_name}\n"
+        f"Alert type: {req.alert_type}\n"
+        f"Evidence: {req.evidence or 'n/a'}\n"
+        f"Subgraph nodes: {len(subgraph.get('nodes', []))}, links: {len(subgraph.get('links', []))}\n"
+        f"Blast radius impacted nodes: {blast.get('impacted_nodes', 0)}, high risk hits: {blast.get('high_risk_hits', 0)}\n"
+        f"Risk path hops: {risk_path.get('hops')} to {risk_path.get('target')}\n"
+    )
+
+    question = (
+        "Write a concise investigation brief in 3-5 bullet points. "
+        "Focus on risk propagation, suspicious connectivity, and immediate next checks. "
+        "Be factual and avoid speculation."
+    )
+
+    try:
+        answer = _llm.ask(question=question, page_context=context)
+    except Exception:
+        fallback = [
+            f"- {req.entity_name} triggered {req.alert_type} and should be triaged immediately.",
+            f"- Local subgraph includes {len(subgraph.get('nodes', []))} nodes and {len(subgraph.get('links', []))} links.",
+            f"- Blast radius touches {blast.get('impacted_nodes', 0)} entities with {blast.get('high_risk_hits', 0)} high-risk hits.",
+        ]
+        if risk_path.get("hops") is not None:
+            fallback.append(
+                f"- Shortest risk path reaches {risk_path.get('target')} in {risk_path.get('hops')} hops."
+            )
+        answer = "\n".join(fallback)
+
+    return {
+        "entity_name": req.entity_name,
+        "alert_type": req.alert_type,
+        "report": answer,
+        "signals": {
+            "subgraph_nodes": len(subgraph.get("nodes", [])),
+            "subgraph_links": len(subgraph.get("links", [])),
+            "blast_radius": blast,
+            "shortest_risk_path": risk_path,
+        },
+    }
