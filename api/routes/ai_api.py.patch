@@ -1,0 +1,56 @@
+--- api/routes/ai_api.py
++++ api/routes/ai_api.py
+@@ -32,28 +32,32 @@
+ @router.post("/settings")
+ def update_ai_settings(req: AISettingsRequest):
+     from config.settings import settings
+-    from dotenv import set_key
+     import os
+-    env_file = ".env"
+-    if not os.path.exists(env_file):
+-        open(env_file, 'a').close()
++    import json
+     
++    cache_file = "config/ai_keys_cache.json"
++    cache_data = {}
++    if os.path.exists(cache_file):
++        try:
++            with open(cache_file, 'r') as f:
++                cache_data = json.load(f)
++        except Exception:
++            pass
++
+     if req.gemini_api_key is not None:
+         settings.gemini_api_key = req.gemini_api_key
+-        set_key(env_file, "GEMINI_API_KEY", req.gemini_api_key)
++        cache_data["GEMINI_API_KEY"] = req.gemini_api_key
+     if req.gemini_model is not None:
+         settings.gemini_model = req.gemini_model
+-        set_key(env_file, "GEMINI_MODEL", req.gemini_model)
++        cache_data["GEMINI_MODEL"] = req.gemini_model
+     if req.groq_api_key is not None:
+         settings.groq_api_key = req.groq_api_key
+-        set_key(env_file, "GROQ_API_KEY", req.groq_api_key)
++        cache_data["GROQ_API_KEY"] = req.groq_api_key
+     if req.groq_model is not None:
+         settings.groq_model = req.groq_model
+-        set_key(env_file, "GROQ_MODEL", req.groq_model)
++        cache_data["GROQ_MODEL"] = req.groq_model
+     if req.openai_api_key is not None:
+         settings.openai_api_key = req.openai_api_key
+-        set_key(env_file, "OPENAI_API_KEY", req.openai_api_key)
++        cache_data["OPENAI_API_KEY"] = req.openai_api_key
+     if req.openai_model is not None:
+         settings.openai_model = req.openai_model
+-        set_key(env_file, "OPENAI_MODEL", req.openai_model)
++        cache_data["OPENAI_MODEL"] = req.openai_model
+         
++    try:
++        with open(cache_file, 'w') as f:
++            json.dump(cache_data, f)
++    except Exception:
++        pass
++
+     global _llm
+     _llm = EnterpriseNetworkLLM()
+     return {"status": "ok", "message": "AI settings updated and LLM re-initialized."}

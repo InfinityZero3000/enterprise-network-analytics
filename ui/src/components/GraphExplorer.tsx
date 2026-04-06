@@ -1,14 +1,31 @@
 import { useRef, useEffect, useMemo, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { translations, type Lang } from '../i18n';
+import {
+  getBlastRadius,
+  getInvestigationSubgraph,
+  getShortestRiskPath,
+  type BlastRadiusResult,
+  type RiskPathResult,
+} from '../services/api';
 
 type Props = {
   lang: Lang;
   initialSearch?: string;
+  investigationSeed?: { entityName: string; alertType: string } | null;
   onSummaryChange?: (summary: { nodes: number; links: number; hubs: string[] }) => void;
+  onExportFocusToAi?: (prompt: string) => void;
+  onFrameContextChange?: (context: string) => void;
 };
 
-export default function GraphExplorer({ lang, initialSearch = '', onSummaryChange }: Props) {
+export default function GraphExplorer({
+  lang,
+  initialSearch = '',
+  investigationSeed = null,
+  onSummaryChange,
+  onExportFocusToAi,
+  onFrameContextChange,
+}: Props) {
   const t = translations[lang];
   const [data, setData] = useState<{nodes: any[], links: any[]}>({ nodes: [], links: [] });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -16,6 +33,16 @@ export default function GraphExplorer({ lang, initialSearch = '', onSummaryChang
   const [minDegree, setMinDegree] = useState(0);
   const [freezeLayout, setFreezeLayout] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [riskPath, setRiskPath] = useState<RiskPathResult | null>(null);
+  const [blastRadius, setBlastRadius] = useState<BlastRadiusResult | null>(null);
+  const [investigationLoading, setInvestigationLoading] = useState(false);
+  const [investigationNodeIds, setInvestigationNodeIds] = useState<Set<string>>(new Set());
+  const [investigationLinkKeys, setInvestigationLinkKeys] = useState<Set<string>>(new Set());
+  const [frameMode, setFrameMode] = useState(false);
+  const [isDraggingFrame, setIsDraggingFrame] = useState(false);
+  const [frameStart, setFrameStart] = useState<{ x: number; y: number } | null>(null);
+  const [frameEnd, setFrameEnd] = useState<{ x: number; y: number } | null>(null);
+  const [framedNodeIds, setFramedNodeIds] = useState<string[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
 
@@ -24,6 +51,57 @@ export default function GraphExplorer({ lang, initialSearch = '', onSummaryChang
       setSearch(initialSearch);
     }
   }, [initialSearch]);
+
+  useEffect(() => {
+    if (!investigationSeed) {
+      return;
+    }
+
+    setInvestigationLoading(true);
+    setSearch(investigationSeed.entityName);
+
+    Promise.allSettled([
+      getInvestigationSubgraph(investigationSeed.entityName, investigationSeed.alertType, 2),
+      getShortestRiskPath(investigationSeed.entityName),
+      getBlastRadius(investigationSeed.entityName),
+    ])
+      .then(([subgraphResult, riskPathResult, blastResult]) => {
+        if (subgraphResult.status === 'fulfilled') {
+          const nodeIdSet = new Set(subgraphResult.value.nodes.map((n) => String(n.id)));
+          const linkKeySet = new Set(
+            subgraphResult.value.links.map((l) => `${String(l.source)}::${String(l.target)}::${String(l.label || '')}`),
+          );
+          const graph = {
+            nodes: subgraphResult.value.nodes.map((n) => ({
+              ...n,
+              val: n.risk && n.risk > 0 ? Math.max(4, n.risk * 10) : 4,
+            })),
+            links: subgraphResult.value.links.map((l) => ({
+              ...l,
+              value: Math.max(1, Number(l.weight || 1)),
+            })),
+          };
+          setInvestigationNodeIds(nodeIdSet);
+          setInvestigationLinkKeys(linkKeySet);
+          setData(graph as any);
+        }
+        if (riskPathResult.status === 'fulfilled') {
+          setRiskPath(riskPathResult.value);
+        }
+        if (blastResult.status === 'fulfilled') {
+          setBlastRadius(blastResult.value);
+        }
+      })
+      .finally(() => setInvestigationLoading(false));
+  }, [investigationSeed]);
+
+  useEffect(() => {
+    if (investigationSeed) {
+      return;
+    }
+    setInvestigationNodeIds(new Set());
+    setInvestigationLinkKeys(new Set());
+  }, [investigationSeed]);
 
   const [repulsionStrength, setRepulsionStrength] = useState(() => Number(localStorage.getItem('app-graph-repulsion')) || 150);
   const [linkDistance, setLinkDistance] = useState(() => Number(localStorage.getItem('app-graph-link-dist')) || 30);
@@ -162,9 +240,14 @@ export default function GraphExplorer({ lang, initialSearch = '', onSummaryChang
     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
     const nodeId = getId(node.id ?? node);
     const isFocused = highlightedIds.has(nodeId);
+    const isInvestigationNode = investigationNodeIds.has(nodeId);
     
     if (!isFocused && (selectedNodeId || search.trim())) {
       return isLight ? 'rgba(71,85,105,0.2)' : 'rgba(100,116,139,0.25)';
+    }
+
+    if (isInvestigationNode) {
+      return isLight ? '#b91c1c' : '#f87171';
     }
 
     if (node.group === 1) return isFocused ? (isLight ? '#1d4ed8' : '#60a5fa') : (isLight ? '#2563eb' : '#3b82f6');
@@ -241,7 +324,104 @@ export default function GraphExplorer({ lang, initialSearch = '', onSummaryChang
     setSelectedNodeId(null);
     setSearch('');
     setMinDegree(0);
+    setFramedNodeIds([]);
+    setFrameStart(null);
+    setFrameEnd(null);
   };
+
+  const framedNodes = useMemo(() => {
+    const idSet = new Set(framedNodeIds);
+    return filteredData.nodes.filter((n: any) => idSet.has(String(n.id)));
+  }, [framedNodeIds, filteredData.nodes]);
+
+  const framedLinkCount = useMemo(() => {
+    if (framedNodeIds.length === 0) {
+      return 0;
+    }
+    const idSet = new Set(framedNodeIds);
+    return filteredData.links.filter((l: any) => {
+      const source = getId(l.source);
+      const target = getId(l.target);
+      return idSet.has(source) && idSet.has(target);
+    }).length;
+  }, [framedNodeIds, filteredData.links]);
+
+  const getRelativePoint = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+  };
+
+  const computeFramedSelection = (start: { x: number; y: number }, end: { x: number; y: number }) => {
+    if (!fgRef.current) {
+      return;
+    }
+    const sx = Math.min(start.x, end.x);
+    const sy = Math.min(start.y, end.y);
+    const ex = Math.max(start.x, end.x);
+    const ey = Math.max(start.y, end.y);
+
+    const gStart = fgRef.current.screen2GraphCoords(sx, sy);
+    const gEnd = fgRef.current.screen2GraphCoords(ex, ey);
+    const gxMin = Math.min(gStart.x, gEnd.x);
+    const gxMax = Math.max(gStart.x, gEnd.x);
+    const gyMin = Math.min(gStart.y, gEnd.y);
+    const gyMax = Math.max(gStart.y, gEnd.y);
+
+    const selected = filteredData.nodes
+      .filter((n: any) => {
+        if (typeof n.x !== 'number' || typeof n.y !== 'number') {
+          return false;
+        }
+        return n.x >= gxMin && n.x <= gxMax && n.y >= gyMin && n.y <= gyMax;
+      })
+      .map((n: any) => String(n.id));
+
+    setFramedNodeIds(selected);
+  };
+
+  const frameRect = useMemo(() => {
+    if (!frameStart || !frameEnd) {
+      return null;
+    }
+    const left = Math.min(frameStart.x, frameEnd.x);
+    const top = Math.min(frameStart.y, frameEnd.y);
+    const width = Math.abs(frameEnd.x - frameStart.x);
+    const height = Math.abs(frameEnd.y - frameStart.y);
+    return { left, top, width, height };
+  }, [frameStart, frameEnd]);
+
+  const exportFramedNodesToAi = () => {
+    if (!framedNodes.length) {
+      return;
+    }
+    const nodeNames = framedNodes.map((n: any) => String(n.name || n.id));
+    const prompt = [
+      `[FRAME_FOCUS_ACTIVE] Analyze ONLY the selected graph frame containing ${framedNodes.length} nodes and ${framedLinkCount} links.`,
+      `Selected entities (strict scope): ${nodeNames.slice(0, 30).join(', ')}.`,
+      'Do not generalize to the whole graph. Prioritize suspicious ownership loops, high-risk hubs, sanction exposure, and top 3 actionable investigation steps for this framed region only.',
+    ].join(' ');
+    onExportFocusToAi?.(prompt);
+  };
+
+  useEffect(() => {
+    if (!onFrameContextChange) {
+      return;
+    }
+    if (!framedNodes.length) {
+      onFrameContextChange('');
+      return;
+    }
+    const names = framedNodes
+      .slice(0, 20)
+      .map((n: any) => String(n.name || n.id))
+      .join(', ');
+    onFrameContextChange(
+      `Framed focus: ${framedNodes.length} nodes, ${framedLinkCount} links. Selected nodes: ${names}.`,
+    );
+  }, [framedNodes, framedLinkCount, onFrameContextChange]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '1rem' }}>
@@ -296,6 +476,39 @@ export default function GraphExplorer({ lang, initialSearch = '', onSummaryChang
         <button onClick={() => fetchGraphData('pagerank')} style={{ padding: '0.5rem 1rem', background: 'var(--accent-primary)', color: 'white', borderRadius: 'var(--radius-md)', border: 'none', fontWeight: 600, cursor: 'pointer' }}>
           {t.graphRunPagerank}
         </button>
+        <button
+          onClick={() => {
+            setFrameMode((v) => !v);
+            setFrameStart(null);
+            setFrameEnd(null);
+            setIsDraggingFrame(false);
+          }}
+          style={{
+            padding: '0.5rem 1rem',
+            background: frameMode ? 'var(--accent-warning)' : 'var(--bg-surface-hover)',
+            color: 'var(--text-primary)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-light)',
+            cursor: 'pointer',
+          }}
+        >
+          {frameMode ? t.graphFrameModeActive : t.graphFrameMode}
+        </button>
+        <button
+          onClick={exportFramedNodesToAi}
+          disabled={!framedNodes.length}
+          style={{
+            padding: '0.5rem 1rem',
+            background: framedNodes.length ? 'var(--accent-primary)' : 'var(--bg-surface-hover)',
+            color: framedNodes.length ? 'white' : 'var(--text-secondary)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-light)',
+            cursor: framedNodes.length ? 'pointer' : 'not-allowed',
+            opacity: framedNodes.length ? 1 : 0.65,
+          }}
+        >
+          {t.graphExportFramedToAi}
+        </button>
         <div style={{ flex: 1 }}></div>
         <div style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
           {t.graphResultCount}: {filteredData.nodes.length} {t.graphNodes}, {filteredData.links.length} {t.graphLinks}
@@ -313,6 +526,46 @@ export default function GraphExplorer({ lang, initialSearch = '', onSummaryChang
         </div>
       </div>
 
+      {framedNodes.length > 0 && (
+        <div style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+          {t.graphFramedCount}: {framedNodes.length} {t.graphNodes}, {framedLinkCount} {t.graphLinks}
+        </div>
+      )}
+
+      {investigationSeed && (
+        <div className="card" style={{ padding: '0.85rem 1rem' }}>
+          <div style={{ fontWeight: 700, marginBottom: '0.45rem' }}>
+            {t.graphInvestigationFocus}: {investigationSeed.entityName} ({investigationSeed.alertType})
+          </div>
+          {investigationLoading && (
+            <div style={{ color: 'var(--text-secondary)' }}>{t.graphLoadingInvestigationSignals}</div>
+          )}
+          {!investigationLoading && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+              <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '0.6rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.35rem' }}>{t.graphShortestPathToRisk}</div>
+                {riskPath?.hops != null ? (
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                    {riskPath.hops} hops to {riskPath.target}. Path: {riskPath.nodes.join(' -> ')}
+                  </div>
+                ) : (
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{t.graphNoSanctionPath}</div>
+                )}
+              </div>
+              <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '0.6rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.35rem' }}>{t.graphBlastRadius}</div>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  {blastRadius?.impacted_nodes || 0} {t.graphImpactedEntitiesSuffix}, {blastRadius?.high_risk_hits || 0} {t.graphHighRiskNeighborsSuffix}.
+                </div>
+                <div style={{ color: 'var(--accent-danger)', fontSize: '0.8rem', marginTop: '0.35rem', fontWeight: 600 }}>
+                  {t.graphSubgraphHighlighted}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="card" ref={containerRef} style={{ flex: 1, padding: 0, overflow: 'hidden', position: 'relative' }}>
         {data.nodes.length > 0 && (
           <ForceGraph2D
@@ -329,6 +582,13 @@ export default function GraphExplorer({ lang, initialSearch = '', onSummaryChang
               const target = getId(link.target);
               const linkedToFocus = highlightedIds.has(source) && highlightedIds.has(target);
               const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+              const directKey = `${source}::${target}::${String(link.label || '')}`;
+              const reverseKey = `${target}::${source}::${String(link.label || '')}`;
+              const isInvestigationLink = investigationLinkKeys.has(directKey) || investigationLinkKeys.has(reverseKey);
+
+              if (isInvestigationLink) {
+                return isLight ? 'rgba(220,38,38,0.65)' : 'rgba(248,113,113,0.72)';
+              }
 
               if (selectedNodeId || search.trim()) {
                 return linkedToFocus ? (isLight ? 'rgba(37,99,235,0.45)' : 'rgba(96,165,250,0.45)') : (isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)');
@@ -341,17 +601,83 @@ export default function GraphExplorer({ lang, initialSearch = '', onSummaryChang
             nodeCanvasObjectMode={() => 'after'}
             nodeCanvasObject={(node, ctx, globalScale) => {
               const label = node.name as string;
+              const nodeId = getId((node as any).id ?? node);
+              const isInvestigationNode = investigationNodeIds.has(nodeId);
               const fontSize = 12 / globalScale;
               ctx.font = `${fontSize}px Inter, Sans-Serif`;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+
+              if (isInvestigationNode) {
+                // Draw a visible ring so investigation subgraph stands out immediately.
+                const ringRadius = (Number((node as any).val) || 4) + 3;
+                ctx.beginPath();
+                ctx.arc((node as any).x || 0, (node as any).y || 0, ringRadius, 0, 2 * Math.PI);
+                ctx.strokeStyle = isLight ? 'rgba(185,28,28,0.95)' : 'rgba(252,165,165,0.95)';
+                ctx.lineWidth = Math.max(1.2, 1.8 / globalScale);
+                ctx.stroke();
+              }
+
               ctx.fillStyle = node.group === 3 ? (isLight ? 'rgba(220,38,38,0.9)' : 'rgba(239,68,68,0.8)') : (isLight ? 'rgba(15,23,42,0.8)' : 'rgba(255,255,255,0.8)');
               if (node.val > 4) {
                  ctx.fillText(label, node.x!, node.y! + 8);
               }
             }}
           />
+        )}
+        {frameMode && (
+          <div
+            onMouseDown={(e) => {
+              const p = getRelativePoint(e);
+              setFrameStart(p);
+              setFrameEnd(p);
+              setIsDraggingFrame(true);
+            }}
+            onMouseMove={(e) => {
+              if (!isDraggingFrame) {
+                return;
+              }
+              setFrameEnd(getRelativePoint(e));
+            }}
+            onMouseUp={() => {
+              if (!frameStart || !frameEnd) {
+                setIsDraggingFrame(false);
+                return;
+              }
+              computeFramedSelection(frameStart, frameEnd);
+              setIsDraggingFrame(false);
+            }}
+            onMouseLeave={() => {
+              if (!isDraggingFrame || !frameStart || !frameEnd) {
+                return;
+              }
+              computeFramedSelection(frameStart, frameEnd);
+              setIsDraggingFrame(false);
+            }}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              cursor: 'crosshair',
+              background: 'transparent',
+              zIndex: 4,
+            }}
+          >
+            {frameRect && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: frameRect.left,
+                  top: frameRect.top,
+                  width: frameRect.width,
+                  height: frameRect.height,
+                  border: '1px dashed #f59e0b',
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -184,6 +184,69 @@ class EnterpriseNetworkLLM:
 
         return "\n".join(lines)
 
+    def _collect_graphrag_data(self, question: str, company_id: str | None = None) -> dict:
+        keywords = self._extract_keywords(question)
+        entities = self._retrieve_entities_by_keywords(keywords, limit=12)
+
+        if company_id and all(str(e.get("node_id")) != str(company_id) for e in entities):
+            entities.insert(0, {
+                "node_id": company_id,
+                "display_name": f"Company {company_id}",
+                "labels": ["Company"],
+                "pagerank": 0.0,
+            })
+
+        node_ids = [str(e.get("node_id")) for e in entities if e.get("node_id")]
+        rels = self._retrieve_relationship_snippets(node_ids, limit=24)
+        similar = self._retrieve_embedding_neighbors(entities, top_n=5)
+        context = self._build_graphrag_context(question, company_id=company_id)
+
+        return {
+            "keywords": keywords,
+            "entities": entities,
+            "rels": rels,
+            "similar": similar,
+            "context": context,
+        }
+
+    def _graph_only_fallback_answer(
+        self,
+        question: str,
+        graphrag_data: dict,
+        page_context: str | None = None,
+    ) -> str:
+        entities = graphrag_data.get("entities", [])
+        rels = graphrag_data.get("rels", [])
+        keywords = graphrag_data.get("keywords", [])
+
+        top_entities = sorted(
+            entities,
+            key=lambda x: float(x.get("pagerank", 0.0) or 0.0),
+            reverse=True,
+        )[:5]
+        top_entity_names = [str(e.get("display_name") or e.get("node_id")) for e in top_entities]
+
+        rel_count_by_type: dict[str, int] = {}
+        for r in rels:
+            rel_type = str(r.get("rel_type") or "RELATIONSHIP")
+            rel_count_by_type[rel_type] = rel_count_by_type.get(rel_type, 0) + 1
+
+        sorted_rels = sorted(rel_count_by_type.items(), key=lambda x: x[1], reverse=True)[:3]
+        rel_summary = ", ".join([f"{name}: {count}" for name, count in sorted_rels]) if sorted_rels else "chưa có"
+
+        risk_edges = [r for r in rels if float(r.get("ownership_pct") or 0) >= 50]
+
+        lines: list[str] = []
+        lines.append("Khong ket noi duoc LLM provider. Dang dung fallback phan tich truc tiep tu Graph Context.")
+        lines.append(f"- Tu khoa truy van: {keywords if keywords else 'khong ro'}.")
+        lines.append(f"- Thuc the hop le tim duoc: {len(entities)}; top node: {', '.join(top_entity_names) if top_entity_names else 'khong co' }.")
+        lines.append(f"- Mau quan he da truy xuat: {len(rels)}; phan bo theo loai: {rel_summary}.")
+        lines.append(f"- Quan he so huu cao (>=50%): {len(risk_edges)} canh.")
+        if page_context:
+            lines.append(f"- UI focus: {page_context}")
+        lines.append("- Goi y tiep theo: khoanh vung node rui ro cao va chay Analyze Framed Nodes de lay ket luan chinh xac hon.")
+        return "\n".join(lines)
+
     def _chat(self, system: str, user: str, model: str | None = None) -> str:
         providers: list[tuple[str, object | None, str]] = []
         if settings.gemini_api_key and self._gemini_client:
@@ -196,7 +259,7 @@ class EnterpriseNetworkLLM:
             providers.append(("ollama", self._ollama_client, model or settings.ollama_model))
 
         if not providers:
-            return "LLM client không khả dụng."
+            return "__LLM_UNAVAILABLE__:NO_PROVIDER"
 
         last_error: Exception | None = None
 
@@ -222,9 +285,9 @@ class EnterpriseNetworkLLM:
             or "ConnectionRefused" in str(last_error)
             or "connect" in str(last_error).lower()
         ):
-            return "(Demo Mock Mode) AI Response: Dựa trên phân tích mạng lưới, tôi không phát hiện dấu hiệu gian lận trực tiếp nào từ các Node hiển thị, tuy nhiên công ty C10492 có dấu hiệu là Shell Company do thiếu nhân sự và tài sản cố định. Vui lòng kiểm tra tab Risk \u0026 Alerts."
+            return "__LLM_UNAVAILABLE__:CONNECTION"
 
-        return f"Lỗi khi gọi LLM: {last_error}"
+        return f"__LLM_UNAVAILABLE__:ERROR:{last_error}"
 
     # ------------------------------------------------------------------ #
     def ask(self, question: str, company_id: str | None = None, page_context: str | None = None) -> str:
@@ -232,8 +295,10 @@ class EnterpriseNetworkLLM:
         if page_context:
             context += f"\nUI Context: {page_context}"
 
+        graphrag_data: dict = {"keywords": [], "entities": [], "rels": [], "similar": [], "context": ""}
         try:
-            graphrag = self._build_graphrag_context(question, company_id=company_id)
+            graphrag_data = self._collect_graphrag_data(question, company_id=company_id)
+            graphrag = graphrag_data.get("context", "")
             context += f"\nGraph Context:\n{graphrag}"
         except Exception as e:
             logger.warning(f"GraphRAG context build failed: {e}")
@@ -253,7 +318,14 @@ class EnterpriseNetworkLLM:
                 logger.warning(f"Context fetch failed: {e}")
 
         system_prompt = SYSTEM_PROMPT + "\n\n" + GRAPH_RAG_HINT
-        return self._chat(system_prompt, question + context)
+        answer = self._chat(system_prompt, question + context)
+        if answer.startswith("__LLM_UNAVAILABLE__"):
+            return self._graph_only_fallback_answer(
+                question=question,
+                graphrag_data=graphrag_data,
+                page_context=page_context,
+            )
+        return answer
 
     def ask_cypher(self, natural_language: str) -> str:
         """Convert natural language question to a Cypher query."""

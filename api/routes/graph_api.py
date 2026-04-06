@@ -115,3 +115,41 @@ def get_supply_chain(
         {"path_ids": p.path_ids, "path_names": p.path_names, "hops": p.hops}
         for p in paths
     ]
+
+
+@router.get("/investigation/subgraph")
+def get_investigation_subgraph(
+    entity_name: str = Query(..., min_length=2),
+    entity_id: str | None = Query(default=None),
+    alert_type: str = Query(default="GENERIC_ALERT"),
+    max_hops: int = Query(default=2, ge=1, le=3),
+    limit: int = Query(default=160, ge=20, le=400),
+):
+    """Lấy subgraph điều tra tập trung theo thực thể và loại cảnh báo."""
+    return _queries.get_investigation_subgraph(
+        entity_name=entity_name,
+        entity_id=entity_id,
+        alert_type=alert_type,
+        max_hops=max_hops,
+        limit=limit,
+    )
+
+
+@router.get("/investigation/shortest-risk-path")
+def get_shortest_risk_path(
+    entity_name: str = Query(..., min_length=2),
+    entity_id: str | None = Query(default=None),
+    max_depth: int = Query(default=6, ge=1, le=8),
+):
+    """Tìm đường đi ngắn nhất từ entity đến node rủi ro cao/sanctioned."""
+    return _queries.get_shortest_path_to_risk(entity_name=entity_name, entity_id=entity_id, max_depth=max_depth)
+
+
+@router.get("/investigation/blast-radius")
+def get_blast_radius(
+    entity_name: str = Query(..., min_length=2),
+    entity_id: str | None = Query(default=None),
+    depth: int = Query(default=2, ge=1, le=4),
+):
+    """Ước lượng phạm vi ảnh hưởng quanh thực thể rủi ro."""
+    return _queries.get_blast_radius(entity_name=entity_name, entity_id=entity_id, depth=depth)

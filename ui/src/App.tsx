@@ -45,6 +45,9 @@ function App() {
   const [updatedAt, setUpdatedAt] = useState('');
   const [isQuickChatOpen, setIsQuickChatOpen] = useState(false);
   const [initialGraphSearch, setInitialGraphSearch] = useState('');
+  const [investigationSeed, setInvestigationSeed] = useState<{ entityName: string; alertType: string } | null>(null);
+  const [quickAiPrompt, setQuickAiPrompt] = useState('');
+  const [quickAiAutoSend, setQuickAiAutoSend] = useState(false);
   const [quickChatWidth, setQuickChatWidth] = useState<number>(() => {
     const stored = localStorage.getItem('quick-chat-width');
     const parsed = stored ? Number(stored) : 420;
@@ -52,6 +55,7 @@ function App() {
   });
   const [graphSummary, setGraphSummary] = useState<{ nodes: number; links: number; hubs: string[] }>({ nodes: 0, links: 0, hubs: [] });
   const [alertsSummary, setAlertsSummary] = useState<{ count: number; topTypes: string[] }>({ count: 0, topTypes: [] });
+  const [graphFrameContext, setGraphFrameContext] = useState('');
   const resizingRef = useRef(false);
 
   useEffect(() => {
@@ -157,14 +161,15 @@ function App() {
   const getMixPct = (value: number) => (mixTotal > 0 ? Math.round((value / mixTotal) * 100) : 0);
 
   const dashboardContext = `Dashboard snapshot: ${totalEntities.toLocaleString()} entities, ${totalRelationships.toLocaleString()} relationships, average degree ${avgDegree}, ${riskCount} priority alerts.`;
-  const graphContext = `Graph view snapshot: ${graphSummary.nodes.toLocaleString()} nodes and ${graphSummary.links.toLocaleString()} links rendered. Top visible hubs: ${graphSummary.hubs.length > 0 ? graphSummary.hubs.join(', ') : 'not available yet'}.`;
+  const graphContext = `Graph view snapshot: ${graphSummary.nodes.toLocaleString()} nodes and ${graphSummary.links.toLocaleString()} links rendered. Top visible hubs: ${graphSummary.hubs.length > 0 ? graphSummary.hubs.join(', ') : 'not available yet'}.${graphFrameContext ? ` ${graphFrameContext}` : ''}`;
   const alertsContext = `Alerts view snapshot: ${alertsSummary.count} active alerts. Top alert types: ${alertsSummary.topTypes.length > 0 ? alertsSummary.topTypes.join(', ') : 'not available yet'}.`;
+  const investigationPromptContext = quickAiPrompt ? `Suggested investigation question: ${quickAiPrompt}` : '';
 
   const currentPageContext =
     activeTab === 'graph'
       ? graphContext
       : activeTab === 'alerts'
-        ? alertsContext
+        ? `${alertsContext}${investigationPromptContext ? ` ${investigationPromptContext}` : ''}`
         : activeTab === 'dashboard'
           ? dashboardContext
           : 'Settings view. Ask for system configuration guidance.';
@@ -377,17 +382,40 @@ function App() {
           )}
 
           {activeTab === 'graph' && (
-            <GraphExplorer key={theme} lang={lang} initialSearch={initialGraphSearch} onSummaryChange={setGraphSummary} />
+            <GraphExplorer
+              key={theme}
+              lang={lang}
+              initialSearch={initialGraphSearch}
+              investigationSeed={investigationSeed}
+              onSummaryChange={setGraphSummary}
+              onFrameContextChange={setGraphFrameContext}
+              onExportFocusToAi={(prompt) => {
+                setQuickAiPrompt(prompt);
+                setQuickAiAutoSend(true);
+                setIsQuickChatOpen(true);
+              }}
+            />
           )}
 
           {activeTab === 'alerts' && (
             <AlertsRisk 
               lang={lang} 
               onSummaryChange={setAlertsSummary} 
-              onInvestigate={(entityName) => {
+              onInvestigate={(entityName, alertType) => {
                 setInitialGraphSearch(entityName);
+                setInvestigationSeed({ entityName, alertType });
                 setActiveTab('graph');
-              }} 
+              }}
+              onAskAiPrompt={(prompt) => {
+                setQuickAiPrompt(prompt);
+                setQuickAiAutoSend(false);
+                setIsQuickChatOpen(true);
+              }}
+              onImportSnapshotToChat={(prompt) => {
+                setQuickAiPrompt(prompt);
+                setQuickAiAutoSend(true);
+                setIsQuickChatOpen(true);
+              }}
             />
           )}
 
@@ -421,7 +449,17 @@ function App() {
           <button className="mini-action" onClick={() => setIsQuickChatOpen(false)}>{t.close}</button>
         </div>
         <div className="quick-chat-body">
-          <AIAssistant lang={lang} pageContext={currentPageContext} compact />
+          <AIAssistant
+            lang={lang}
+            pageContext={currentPageContext}
+            compact
+            seedPrompt={quickAiPrompt}
+            autoSendSeed={quickAiAutoSend}
+            onSeedConsumed={() => {
+              setQuickAiPrompt('');
+              setQuickAiAutoSend(false);
+            }}
+          />
         </div>
       </div>
     </div>

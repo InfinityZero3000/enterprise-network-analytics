@@ -6,15 +6,26 @@ type Props = {
   lang: Lang;
   pageContext?: string;
   compact?: boolean;
+  seedPrompt?: string;
+  autoSendSeed?: boolean;
+  onSeedConsumed?: () => void;
 };
 
-export default function AIAssistant({ lang, pageContext, compact = false }: Props) {
+export default function AIAssistant({
+  lang,
+  pageContext,
+  compact = false,
+  seedPrompt,
+  autoSendSeed = false,
+  onSeedConsumed,
+}: Props) {
   const t = translations[lang];
   const [query, setQuery] = useState('');
   const [chatLog, setChatLog] = useState<{role: 'user' | 'ai', content: string}[]>([
     { role: 'ai', content: t.aiWelcome }
   ]);
   const [loading, setLoading] = useState(false);
+  const [lastSeed, setLastSeed] = useState('');
 
   const sanitizeAiText = (text: string): string => {
     return text
@@ -34,9 +45,9 @@ export default function AIAssistant({ lang, pageContext, compact = false }: Prop
     }
   }, [lang]);
 
-  const handleAsk = async () => {
-    if (!query.trim()) return;
-    const currentQ = query;
+  const sendQuestion = async (question: string) => {
+    const currentQ = question.trim();
+    if (!currentQ) return;
     setQuery('');
     setChatLog(prev => [...prev, { role: 'user', content: currentQ }]);
     setLoading(true);
@@ -51,6 +62,26 @@ export default function AIAssistant({ lang, pageContext, compact = false }: Prop
       setLoading(false);
     }
   };
+
+  const handleAsk = async () => {
+    await sendQuestion(query);
+  };
+
+  useEffect(() => {
+    if (!seedPrompt || !seedPrompt.trim()) {
+      return;
+    }
+    if (seedPrompt === lastSeed) {
+      return;
+    }
+    setLastSeed(seedPrompt);
+    if (autoSendSeed) {
+      void sendQuestion(seedPrompt);
+    } else {
+      setQuery(seedPrompt);
+    }
+    onSeedConsumed?.();
+  }, [seedPrompt, autoSendSeed, lastSeed, onSeedConsumed]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)', overflow: 'hidden' }}>
