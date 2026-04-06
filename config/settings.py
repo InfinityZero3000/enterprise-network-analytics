@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     gemini_model: str = Field("gemini-1.5-pro", validation_alias="GEMINI_MODEL")
     groq_api_key: str = Field("", validation_alias="GROQ_API_KEY")
     groq_model: str = Field("llama-3.3-70b-versatile", validation_alias="GROQ_MODEL")
+    openrouter_api_key: str = Field("", validation_alias="OPENROUTER_API_KEY")
+    openrouter_model: str = Field("openai/gpt-4o-mini", validation_alias="OPENROUTER_MODEL")
+    openrouter_base_url: str = Field("https://openrouter.ai/api/v1", validation_alias="OPENROUTER_BASE_URL")
     openai_api_key: str = Field("", validation_alias="OPENAI_API_KEY")
     openai_model: str = Field("gpt-4o", validation_alias="OPENAI_MODEL")
     ollama_base_url: str = Field("http://localhost:11434", validation_alias="OLLAMA_BASE_URL")
@@ -107,12 +110,14 @@ import os, json
 cache_file = "config/ai_keys_cache.json"
 if os.path.exists(cache_file):
     try:
-        with open(cache_file, 'r') as f:
+        with open(cache_file, 'r', encoding='utf-8') as f:
             cache_data = json.load(f)
         if "GEMINI_API_KEY" in cache_data: settings.gemini_api_key = cache_data["GEMINI_API_KEY"]
         if "GEMINI_MODEL" in cache_data: settings.gemini_model = cache_data["GEMINI_MODEL"]
         if "GROQ_API_KEY" in cache_data: settings.groq_api_key = cache_data["GROQ_API_KEY"]
         if "GROQ_MODEL" in cache_data: settings.groq_model = cache_data["GROQ_MODEL"]
+        if "OPENROUTER_API_KEY" in cache_data: settings.openrouter_api_key = cache_data["OPENROUTER_API_KEY"]
+        if "OPENROUTER_MODEL" in cache_data: settings.openrouter_model = cache_data["OPENROUTER_MODEL"]
         if "OPENAI_API_KEY" in cache_data: settings.openai_api_key = cache_data["OPENAI_API_KEY"]
         if "OPENAI_MODEL" in cache_data: settings.openai_model = cache_data["OPENAI_MODEL"]
     except Exception as e:

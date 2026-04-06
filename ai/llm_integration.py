@@ -26,7 +26,8 @@ def _get_gemini_client():
         from openai import OpenAI
         return OpenAI(
             api_key=settings.gemini_api_key,
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            timeout=12.0,
         )
     except Exception:
         return None
@@ -35,7 +36,7 @@ def _get_gemini_client():
 def _get_openai_client():
     try:
         from openai import OpenAI
-        return OpenAI(api_key=settings.openai_api_key)
+        return OpenAI(api_key=settings.openai_api_key, timeout=12.0)
     except Exception:
         return None
 
@@ -43,7 +44,19 @@ def _get_openai_client():
 def _get_groq_client():
     try:
         from openai import OpenAI
-        return OpenAI(api_key=settings.groq_api_key, base_url="https://api.groq.com/openai/v1")
+        return OpenAI(api_key=settings.groq_api_key, base_url="https://api.groq.com/openai/v1", timeout=12.0)
+    except Exception:
+        return None
+
+
+def _get_openrouter_client():
+    try:
+        from openai import OpenAI
+        return OpenAI(
+            api_key=settings.openrouter_api_key,
+            base_url=settings.openrouter_base_url,
+            timeout=12.0,
+        )
     except Exception:
         return None
 
@@ -51,16 +64,54 @@ def _get_groq_client():
 def _get_ollama_client():
     try:
         from openai import OpenAI
-        return OpenAI(base_url=settings.ollama_base_url, api_key="ollama")
+        return OpenAI(base_url=settings.ollama_base_url, api_key="ollama", timeout=12.0)
     except Exception:
         return None
 
 
 class EnterpriseNetworkLLM:
 
+    def _extract_frame_node_ids_from_context(self, page_context: str | None) -> list[str]:
+        if not page_context:
+            return []
+
+        match = re.search(r"FRAME_NODE_IDS:\s*([^\n]+)", page_context)
+        if not match:
+            return []
+
+        raw = match.group(1).strip().rstrip('.')
+        ids = [token.strip() for token in raw.split(',') if token.strip()]
+        # Keep order while removing duplicates.
+        seen: set[str] = set()
+        result: list[str] = []
+        for node_id in ids:
+            if node_id in seen:
+                continue
+            seen.add(node_id)
+            result.append(node_id)
+            if len(result) >= 200:
+                break
+        return result
+
+    def _retrieve_entities_by_node_ids(self, node_ids: list[str]) -> list[dict]:
+        if not node_ids:
+            return []
+
+        cypher = """
+        MATCH (e:Entity)
+        WHERE e.node_id IN $node_ids
+        RETURN e.node_id AS node_id,
+               coalesce(e.name, e.full_name, e.address, e.node_id) AS display_name,
+               labels(e) AS labels,
+               coalesce(e.pagerank_score, 0.0) AS pagerank
+        """
+        with Neo4jConnection.session() as s:
+            return [dict(r) for r in s.run(cypher, node_ids=node_ids)]
+
     def __init__(self):
         self._gemini_client = _get_gemini_client()
         self._groq_client = _get_groq_client()
+        self._openrouter_client = _get_openrouter_client()
         self._openai_client = _get_openai_client()
         self._ollama_client = _get_ollama_client()
         self._embedding = None
@@ -144,9 +195,29 @@ class EnterpriseNetworkLLM:
             logger.warning(f"Embedding retrieval failed: {e}")
             return []
 
-    def _build_graphrag_context(self, question: str, company_id: str | None = None) -> str:
+    def _build_graphrag_context(
+        self,
+        question: str,
+        company_id: str | None = None,
+        pinned_node_ids: list[str] | None = None,
+    ) -> str:
         keywords = self._extract_keywords(question)
         entities = self._retrieve_entities_by_keywords(keywords, limit=12)
+        pinned_node_ids = pinned_node_ids or []
+
+        pinned_entities = self._retrieve_entities_by_node_ids(pinned_node_ids)
+        for pe in pinned_entities:
+            if all(str(e.get("node_id")) != str(pe.get("node_id")) for e in entities):
+                entities.insert(0, pe)
+
+        for pinned_id in pinned_node_ids:
+            if all(str(e.get("node_id")) != str(pinned_id) for e in entities):
+                entities.insert(0, {
+                    "node_id": pinned_id,
+                    "display_name": f"PinnedNode {pinned_id}",
+                    "labels": ["Entity"],
+                    "pagerank": 0.0,
+                })
 
         # If user pins a company_id, force-include it to improve precision.
         if company_id and all(str(e.get("node_id")) != str(company_id) for e in entities):
@@ -162,6 +233,8 @@ class EnterpriseNetworkLLM:
         similar = self._retrieve_embedding_neighbors(entities, top_n=5)
 
         lines: list[str] = []
+        if pinned_node_ids:
+            lines.append(f"Pinned frame node ids ({len(pinned_node_ids)}): {pinned_node_ids[:80]}")
         lines.append(f"Keywords: {keywords}")
         lines.append(f"Matched entities ({len(entities)}):")
         for e in entities[:10]:
@@ -184,9 +257,29 @@ class EnterpriseNetworkLLM:
 
         return "\n".join(lines)
 
-    def _collect_graphrag_data(self, question: str, company_id: str | None = None) -> dict:
+    def _collect_graphrag_data(
+        self,
+        question: str,
+        company_id: str | None = None,
+        pinned_node_ids: list[str] | None = None,
+    ) -> dict:
         keywords = self._extract_keywords(question)
         entities = self._retrieve_entities_by_keywords(keywords, limit=12)
+        pinned_node_ids = pinned_node_ids or []
+
+        pinned_entities = self._retrieve_entities_by_node_ids(pinned_node_ids)
+        for pe in pinned_entities:
+            if all(str(e.get("node_id")) != str(pe.get("node_id")) for e in entities):
+                entities.insert(0, pe)
+
+        for pinned_id in pinned_node_ids:
+            if all(str(e.get("node_id")) != str(pinned_id) for e in entities):
+                entities.insert(0, {
+                    "node_id": pinned_id,
+                    "display_name": f"PinnedNode {pinned_id}",
+                    "labels": ["Entity"],
+                    "pagerank": 0.0,
+                })
 
         if company_id and all(str(e.get("node_id")) != str(company_id) for e in entities):
             entities.insert(0, {
@@ -199,7 +292,11 @@ class EnterpriseNetworkLLM:
         node_ids = [str(e.get("node_id")) for e in entities if e.get("node_id")]
         rels = self._retrieve_relationship_snippets(node_ids, limit=24)
         similar = self._retrieve_embedding_neighbors(entities, top_n=5)
-        context = self._build_graphrag_context(question, company_id=company_id)
+        context = self._build_graphrag_context(
+            question,
+            company_id=company_id,
+            pinned_node_ids=pinned_node_ids,
+        )
 
         return {
             "keywords": keywords,
@@ -214,6 +311,7 @@ class EnterpriseNetworkLLM:
         question: str,
         graphrag_data: dict,
         page_context: str | None = None,
+        llm_unavailable_reason: str | None = None,
     ) -> str:
         entities = graphrag_data.get("entities", [])
         rels = graphrag_data.get("rels", [])
@@ -237,14 +335,16 @@ class EnterpriseNetworkLLM:
         risk_edges = [r for r in rels if float(r.get("ownership_pct") or 0) >= 50]
 
         lines: list[str] = []
-        lines.append("Khong ket noi duoc LLM provider. Dang dung fallback phan tich truc tiep tu Graph Context.")
-        lines.append(f"- Tu khoa truy van: {keywords if keywords else 'khong ro'}.")
-        lines.append(f"- Thuc the hop le tim duoc: {len(entities)}; top node: {', '.join(top_entity_names) if top_entity_names else 'khong co' }.")
-        lines.append(f"- Mau quan he da truy xuat: {len(rels)}; phan bo theo loai: {rel_summary}.")
-        lines.append(f"- Quan he so huu cao (>=50%): {len(risk_edges)} canh.")
+        lines.append("Không kết nối được LLM provider. Đang dùng fallback phân tích trực tiếp từ Graph Context.")
+        if llm_unavailable_reason:
+            lines.append(f"- Lý do fallback: {llm_unavailable_reason}.")
+        lines.append(f"- Từ khóa truy vấn: {keywords if keywords else 'không rõ'}.")
+        lines.append(f"- Thực thể hợp lệ tìm được: {len(entities)}; top node: {', '.join(top_entity_names) if top_entity_names else 'không có'}.")
+        lines.append(f"- Mẫu quan hệ đã truy xuất: {len(rels)}; phân bố theo loại: {rel_summary}.")
+        lines.append(f"- Quan hệ sở hữu cao (>=50%): {len(risk_edges)} cạnh.")
         if page_context:
             lines.append(f"- UI focus: {page_context}")
-        lines.append("- Goi y tiep theo: khoanh vung node rui ro cao va chay Analyze Framed Nodes de lay ket luan chinh xac hon.")
+        lines.append("- Gợi ý tiếp theo: khoanh vùng node rủi ro cao và chạy Analyze Framed Nodes để lấy kết luận chính xác hơn.")
         return "\n".join(lines)
 
     def _chat(self, system: str, user: str, model: str | None = None) -> str:
@@ -253,6 +353,8 @@ class EnterpriseNetworkLLM:
             providers.append(("gemini", self._gemini_client, model or settings.gemini_model))
         if settings.groq_api_key and self._groq_client:
             providers.append(("groq", self._groq_client, model or settings.groq_model))
+        if settings.openrouter_api_key and self._openrouter_client:
+            providers.append(("openrouter", self._openrouter_client, model or settings.openrouter_model))
         if settings.openai_api_key and self._openai_client:
             providers.append(("openai", self._openai_client, model or settings.openai_model))
         if self._ollama_client:
@@ -292,12 +394,19 @@ class EnterpriseNetworkLLM:
     # ------------------------------------------------------------------ #
     def ask(self, question: str, company_id: str | None = None, page_context: str | None = None) -> str:
         context = ""
+        frame_node_ids = self._extract_frame_node_ids_from_context(page_context)
         if page_context:
             context += f"\nUI Context: {page_context}"
+        if frame_node_ids:
+            context += f"\nPinned Frame Node IDs: {frame_node_ids[:150]}"
 
         graphrag_data: dict = {"keywords": [], "entities": [], "rels": [], "similar": [], "context": ""}
         try:
-            graphrag_data = self._collect_graphrag_data(question, company_id=company_id)
+            graphrag_data = self._collect_graphrag_data(
+                question,
+                company_id=company_id,
+                pinned_node_ids=frame_node_ids,
+            )
             graphrag = graphrag_data.get("context", "")
             context += f"\nGraph Context:\n{graphrag}"
         except Exception as e:
@@ -320,10 +429,17 @@ class EnterpriseNetworkLLM:
         system_prompt = SYSTEM_PROMPT + "\n\n" + GRAPH_RAG_HINT
         answer = self._chat(system_prompt, question + context)
         if answer.startswith("__LLM_UNAVAILABLE__"):
+            reason_map = {
+                "NO_PROVIDER": "Chưa cấu hình API key hoặc model cho bất kỳ LLM provider nào",
+                "CONNECTION": "Không thể kết nối tới endpoint LLM (timeout hoặc từ chối kết nối)",
+            }
+            raw_reason = answer.replace("__LLM_UNAVAILABLE__:", "", 1)
+            reason = reason_map.get(raw_reason, raw_reason.replace("ERROR:", "Lỗi provider: "))
             return self._graph_only_fallback_answer(
                 question=question,
                 graphrag_data=graphrag_data,
                 page_context=page_context,
+                llm_unavailable_reason=reason,
             )
         return answer
 

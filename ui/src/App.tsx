@@ -27,6 +27,16 @@ type FraudAlert = {
   description: string
 }
 
+const DEFAULT_API_ROOT = 'http://localhost:8000';
+
+const resolveApiRoot = () => {
+  const raw = (localStorage.getItem('app-api-url') || '').trim();
+  if (!raw) {
+    return DEFAULT_API_ROOT;
+  }
+  return raw.replace(/\/+$/, '');
+};
+
 function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const stored = localStorage.getItem('app-theme');
@@ -62,12 +72,26 @@ function App() {
     const loadDashboard = async () => {
       setLoading(true);
 
-      const baseUrl = localStorage.getItem('app-api-url') || 'http://localhost:8000';
-      const [statsResult, networkResult, alertsResult] = await Promise.allSettled([
-        getGlobalStats(),
-        fetch(`${baseUrl}/api/v1/graph/network?limit=220`).then(res => res.json()),
-        getFraudAlerts(8),
-      ]);
+      const fetchDashboardWithRoot = async (root: string) => {
+        const [statsResult, networkResult, alertsResult] = await Promise.allSettled([
+          getGlobalStats(),
+          fetch(`${root}/api/v1/graph/network?limit=220`).then(res => res.json()),
+          getFraudAlerts(8),
+        ]);
+        return { statsResult, networkResult, alertsResult };
+      };
+
+      const configuredRoot = resolveApiRoot();
+      let { statsResult, networkResult, alertsResult } = await fetchDashboardWithRoot(configuredRoot);
+
+      const allFailed =
+        statsResult.status === 'rejected' &&
+        networkResult.status === 'rejected' &&
+        alertsResult.status === 'rejected';
+
+      if (allFailed && configuredRoot !== DEFAULT_API_ROOT) {
+        ({ statsResult, networkResult, alertsResult } = await fetchDashboardWithRoot(DEFAULT_API_ROOT));
+      }
 
       if (statsResult.status === 'fulfilled') {
         setStats(statsResult.value);

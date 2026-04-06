@@ -113,13 +113,7 @@ export default function AlertsRisk({
       setActiveCase(createdCase);
       setLatestSnapshotImage(createdCase.snapshots?.[0]?.image_data_url || null);
 
-      const [reportRes, subgraphRes, pathRes, blastRes] = await Promise.all([
-        getInvestigationReport({
-          entity_name: alert.entity_name,
-          entity_id: alert.entity_id,
-          alert_type: alert.alert_type,
-          evidence: alert.description,
-        }),
+      const [subgraphRes, pathRes, blastRes] = await Promise.all([
         getInvestigationSubgraph(alert.entity_name, alert.alert_type, 2, alert.entity_id),
         getShortestRiskPath(alert.entity_name, alert.entity_id),
         getBlastRadius(alert.entity_name, alert.entity_id),
@@ -139,6 +133,20 @@ export default function AlertsRisk({
             ],
             links: [],
           };
+
+      const reportRes = await getInvestigationReport({
+        entity_name: alert.entity_name,
+        entity_id: alert.entity_id,
+        alert_type: alert.alert_type,
+        evidence: alert.description,
+        with_signals: false,
+        subgraph_nodes: normalizedSubgraph.nodes.length,
+        subgraph_links: normalizedSubgraph.links.length,
+        blast_impacted_nodes: blastRes?.impacted_nodes || 0,
+        blast_high_risk_hits: blastRes?.high_risk_hits || 0,
+        risk_path_hops: pathRes?.hops ?? null,
+        risk_path_target: pathRes?.target ?? null,
+      });
 
       setReportText(reportRes.report);
       setSubgraph(normalizedSubgraph);

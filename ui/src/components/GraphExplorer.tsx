@@ -397,10 +397,18 @@ export default function GraphExplorer({
     if (!framedNodes.length) {
       return;
     }
-    const nodeNames = framedNodes.map((n: any) => String(n.name || n.id));
+    const uniqueNodes = framedNodes
+      .map((n: any) => ({ id: String(n.id), name: String(n.name || n.id) }))
+      .filter((n, idx, arr) => arr.findIndex((x) => x.id === n.id) === idx);
+    const nodeLabels = uniqueNodes.slice(0, 40).map((n) => `${n.name} [${n.id}]`);
+    const nodeIds = uniqueNodes.slice(0, 120).map((n) => n.id);
+
     const prompt = [
       `[FRAME_FOCUS_ACTIVE] Analyze ONLY the selected graph frame containing ${framedNodes.length} nodes and ${framedLinkCount} links.`,
-      `Selected entities (strict scope): ${nodeNames.slice(0, 30).join(', ')}.`,
+      `FRAME_NODE_COUNT: ${uniqueNodes.length}.`,
+      `FRAME_LINK_COUNT: ${framedLinkCount}.`,
+      `FRAME_NODE_IDS: ${nodeIds.join(',')}.`,
+      `Selected entities (strict scope): ${nodeLabels.join(', ')}.`,
       'Do not generalize to the whole graph. Prioritize suspicious ownership loops, high-risk hubs, sanction exposure, and top 3 actionable investigation steps for this framed region only.',
     ].join(' ');
     onExportFocusToAi?.(prompt);
@@ -414,12 +422,17 @@ export default function GraphExplorer({
       onFrameContextChange('');
       return;
     }
-    const names = framedNodes
-      .slice(0, 20)
-      .map((n: any) => String(n.name || n.id))
+    const uniqueNodes = framedNodes
+      .map((n: any) => ({ id: String(n.id), name: String(n.name || n.id) }))
+      .filter((n, idx, arr) => arr.findIndex((x) => x.id === n.id) === idx);
+    const labels = uniqueNodes
+      .slice(0, 30)
+      .map((n) => `${n.name} [${n.id}]`)
       .join(', ');
+    const ids = uniqueNodes.slice(0, 150).map((n) => n.id).join(',');
+
     onFrameContextChange(
-      `Framed focus: ${framedNodes.length} nodes, ${framedLinkCount} links. Selected nodes: ${names}.`,
+      `Framed focus: ${uniqueNodes.length} nodes, ${framedLinkCount} links. FRAME_NODE_IDS: ${ids}. Selected nodes: ${labels}.`,
     );
   }, [framedNodes, framedLinkCount, onFrameContextChange]);
 

@@ -29,6 +29,15 @@ export default function CrawlManager({ lang }: Props) {
   useEffect(() => {
     let mounted = true;
     setLoadingSources(true);
+
+    const watchdog = window.setTimeout(() => {
+      if (!mounted) {
+        return;
+      }
+      setLoadingSources(false);
+      setStatusText(t.crawlFailedLoadSources);
+    }, 15000);
+
     listCrawlSources()
       .then((res) => {
         if (!mounted) {
@@ -49,12 +58,14 @@ export default function CrawlManager({ lang }: Props) {
       })
       .finally(() => {
         if (mounted) {
+          window.clearTimeout(watchdog);
           setLoadingSources(false);
         }
       });
 
     return () => {
       mounted = false;
+      window.clearTimeout(watchdog);
     };
   }, [t.crawlFailedLoadSources]);
 

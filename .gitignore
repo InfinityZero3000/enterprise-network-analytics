@@ -133,5 +133,6 @@ Thumbs.db
 *.crt
 secrets/
 credentials/
+config/ai_keys_cache.json
 
 commands.md

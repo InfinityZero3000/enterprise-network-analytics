@@ -1,12 +1,23 @@
 import axios from 'axios';
 
+const DEFAULT_API_ROOT = 'http://localhost:8000';
+
+const normalizeApiRoot = (value?: string | null) => {
+  const raw = (value || '').trim();
+  if (!raw) {
+    return DEFAULT_API_ROOT;
+  }
+  return raw.replace(/\/+$/, '');
+};
+
 const getApiBaseUrl = () => {
-  const url = localStorage.getItem('app-api-url') || 'http://localhost:8000';
+  const url = normalizeApiRoot(localStorage.getItem('app-api-url'));
   return `${url}/api/v1`;
 };
 
 const apiClient = axios.create({
   baseURL: getApiBaseUrl(),
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -17,6 +28,25 @@ apiClient.interceptors.request.use((config) => {
   config.baseURL = getApiBaseUrl();
   return config;
 });
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const cfg = error?.config;
+    if (!cfg || cfg.__retriedWithDefaultApi) {
+      return Promise.reject(error);
+    }
+
+    const storedRoot = normalizeApiRoot(localStorage.getItem('app-api-url'));
+    if (storedRoot === DEFAULT_API_ROOT) {
+      return Promise.reject(error);
+    }
+
+    cfg.__retriedWithDefaultApi = true;
+    cfg.baseURL = `${DEFAULT_API_ROOT}/api/v1`;
+    return apiClient.request(cfg);
+  },
+);
 
 export const getFraudAlerts = async (limit?: number) => {
   const response = await apiClient.get('/analytics/fraud/alerts', {
@@ -30,6 +60,13 @@ export type InvestigationReportRequest = {
   entity_id?: string;
   alert_type: string;
   evidence?: string;
+  with_signals?: boolean;
+  subgraph_nodes?: number;
+  subgraph_links?: number;
+  blast_impacted_nodes?: number;
+  blast_high_risk_hits?: number;
+  risk_path_hops?: number | null;
+  risk_path_target?: string | null;
 };
 
 export type InvestigationReportResponse = {
@@ -224,8 +261,23 @@ export type CrawlSourcesResponse = {
 };
 
 export const listCrawlSources = async (): Promise<CrawlSourcesResponse> => {
-  const response = await apiClient.get('/crawl/sources');
-  return response.data as CrawlSourcesResponse;
+  const toResponse = (data: any): CrawlSourcesResponse => {
+    if (data && Array.isArray(data.sources)) {
+      return data as CrawlSourcesResponse;
+    }
+    return { sources: [] };
+  };
+
+  try {
+    const response = await apiClient.get('/crawl/sources');
+    return toResponse(response.data);
+  } catch {
+    const fallback = await axios.get(`${DEFAULT_API_ROOT}/api/v1/crawl/sources`, {
+      timeout: 10000,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return toResponse(fallback.data);
+  }
 };
 
 export type CrawlRunPayload = {

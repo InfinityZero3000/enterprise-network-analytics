@@ -12,7 +12,8 @@ BATCH_SIZE = 1_000
 MERGE_COMPANY = """
 UNWIND $batch AS row
 MERGE (c:Company {company_id: row.company_id})
-SET c.name = row.name, c.tax_code = row.tax_code,
+SET c:Entity, c.node_id = row.company_id,
+    c.name = row.name, c.tax_code = row.tax_code,
     c.company_type = row.company_type, c.status = row.status,
     c.industry_code = row.industry_code, c.charter_capital = row.charter_capital,
     c.province = row.province, c.country = row.country,
@@ -27,7 +28,8 @@ MERGE (c)-[:BELONGS_TO]->(i)
 MERGE_PERSON = """
 UNWIND $batch AS row
 MERGE (p:Person {person_id: row.person_id})
-SET p.full_name = row.full_name,
+SET p:Entity, p.node_id = row.person_id,
+    p.full_name = row.full_name,
     p.nationality = row.nationality,
     p.is_pep = row.is_pep,
     p.is_sanctioned = row.is_sanctioned,
@@ -37,7 +39,8 @@ SET p.full_name = row.full_name,
 MERGE_ADDRESS = """
 UNWIND $batch AS row
 MERGE (a:Address {address_id: row.address_id})
-SET a.address = row.address,
+SET a:Entity, a.node_id = row.address_id,
+    a.address = row.address,
     a.name = row.name,
     a.country = row.country,
     a.updated_at = datetime()
