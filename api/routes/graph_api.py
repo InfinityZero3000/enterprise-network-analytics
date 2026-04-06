@@ -35,6 +35,43 @@ def get_communities():
     return _algo.run_community_detection(write=False)
 
 
+@router.get("/network")
+def get_network_graph(
+    limit: int = Query(default=150, ge=10, le=1000), 
+    order_by: str = Query(default=None)
+):
+    """Lấy dữ liệu đồ thị dạng Nodes/Links để vẽ trên UI."""
+    from config.neo4j_config import Neo4jConnection
+    
+    order_clause = ""
+    if order_by == "pagerank":
+        order_clause = "ORDER BY source.pagerank_score DESC"
+        
+    cypher = f"""
+    MATCH (source:Entity)-[r:RELATIONSHIP]->(target:Entity)
+    WITH source, r, target
+    {order_clause}
+    LIMIT $limit
+    WITH collect(source) + collect(target) as allNodes, collect({{source: source.node_id, target: target.node_id, label: r.rel_type}}) as links
+    UNWIND allNodes as n
+    WITH DISTINCT n, links
+    RETURN 
+        collect({{
+            id: n.node_id, 
+            name: coalesce(n.name, n.full_name, n.address, n.node_id), 
+            group: CASE WHEN "Company" IN labels(n) THEN 1 WHEN "Person" IN labels(n) THEN 2 ELSE 3 END,
+            val: CASE WHEN n.pagerank_score IS NOT NULL THEN n.pagerank_score * 20 ELSE 5 END,
+            pagerank: n.pagerank_score
+        }}) as nodes,
+        links
+    """
+    with Neo4jConnection.session() as s:
+        record = s.run(cypher, limit=limit).single()
+        if record:
+            return {"nodes": record["nodes"], "links": record["links"]}
+        return {"nodes": [], "links": []}
+
+
 @router.get("/circular-ownership")
 def get_all_circular():
     """Tìm tất cả vòng tròn sở hữu trong toàn bộ graph."""
@@ -78,3 +115,41 @@ def get_supply_chain(
         {"path_ids": p.path_ids, "path_names": p.path_names, "hops": p.hops}
         for p in paths
     ]
+
+
+@router.get("/investigation/subgraph")
+def get_investigation_subgraph(
+    entity_name: str = Query(..., min_length=2),
+    entity_id: str | None = Query(default=None),
+    alert_type: str = Query(default="GENERIC_ALERT"),
+    max_hops: int = Query(default=2, ge=1, le=3),
+    limit: int = Query(default=160, ge=20, le=400),
+):
+    """Lấy subgraph điều tra tập trung theo thực thể và loại cảnh báo."""
+    return _queries.get_investigation_subgraph(
+        entity_name=entity_name,
+        entity_id=entity_id,
+        alert_type=alert_type,
+        max_hops=max_hops,
+        limit=limit,
+    )
+
+
+@router.get("/investigation/shortest-risk-path")
+def get_shortest_risk_path(
+    entity_name: str = Query(..., min_length=2),
+    entity_id: str | None = Query(default=None),
+    max_depth: int = Query(default=6, ge=1, le=8),
+):
+    """Tìm đường đi ngắn nhất từ entity đến node rủi ro cao/sanctioned."""
+    return _queries.get_shortest_path_to_risk(entity_name=entity_name, entity_id=entity_id, max_depth=max_depth)
+
+
+@router.get("/investigation/blast-radius")
+def get_blast_radius(
+    entity_name: str = Query(..., min_length=2),
+    entity_id: str | None = Query(default=None),
+    depth: int = Query(default=2, ge=1, le=4),
+):
+    """Ước lượng phạm vi ảnh hưởng quanh thực thể rủi ro."""
+    return _queries.get_blast_radius(entity_name=entity_name, entity_id=entity_id, depth=depth)

@@ -1,0 +1,10 @@
+{
+  "name": "enterprise-network-analytics",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "docker compose up -d && cd ui && npm run dev",
+    "stop": "docker compose down",
+    "build": "cd ui && npm run build"
+  }
+}

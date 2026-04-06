@@ -1,154 +1,52 @@
-# Enterprise Network Analytics — Phân Tích Mạng Lưới Doanh Nghiệp
+# Enterprise Network Analytics
 
-> **Stack:** PySpark · Apache Kafka · Neo4j · FastAPI · MLflow · Airflow
+## System Overview
+
+Enterprise Network Analytics is an advanced analytics and visualization platform dedicated to mapping and analyzing complex relational networks between economic entities, including corporations, individuals, addresses, and assets.
+
+The core objective of the system is to untangle complex corporate structures, cross-ownership networks, and shell entities. By leveraging Graph Data Science and Generative Artificial Intelligence (GenAI), the platform enables the detection of hidden risks, fraudulent behaviors, and compliance violations within large-scale enterprise datasets.
 
 ---
 
-## Tổng Quan Kiến Trúc
+## Core Capabilities
 
-```
-Raw Data Sources
-      │
-      ▼
-┌─────────────────────────────────────────┐
-│          Ingestion Layer                │
-│   Kafka (streaming) + Batch loaders     │
-└──────────────┬──────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────┐
-│        Processing Layer (PySpark)       │
-│   ETL · Cleaning · Feature Engineering │
-└──────────────┬──────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────┐
-│         Graph Layer (Neo4j)             │
-│   Nodes: Company, Person, Transaction   │
-│   PageRank · Centrality · Community     │
-└──────────────┬──────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────┐
-│         Analytics Layer                 │
-│  ┌──────────────┐  ┌──────────────────┐ │
-│  │ Fraud / Risk │  │  Ownership Graph │ │
-│  └──────────────┘  └──────────────────┘ │
-│  ┌──────────────┐  ┌──────────────────┐ │
-│  │ Supply Chain │  │  AI / LLM Query  │ │
-│  └──────────────┘  └──────────────────┘ │
-└──────────────┬──────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────┐
-│            API Layer (FastAPI)          │
-│   REST endpoints · Graph queries        │
-└─────────────────────────────────────────┘
-```
+### 1. Graph Explorer and Visualization
+* **Interactive Rendering:** High-performance mapping of thousands of nodes and edges, offering real-time reflection of data mutations and network topology changes.
+* **Layout Physics Interaction:** Dynamic manipulation of physical repulsion forces and edge constraints to expand or contract hyper-connected data clusters, ensuring optimal analytical visibility.
+* **Focus & Filtering:** Programmable node pruning based on connection degrees and instantaneous search functionality for investigating localized network hotspots.
 
-## Cấu Trúc Thư Mục
+### 2. Fraud & Risk Detection
+* **Rule Engine:** Continuous network scanning algorithms designed to trace classic violation indicators, including:
+  * Mass Registration and Virtual Mailbox detection.
+  * Circular Ownership architectures.
+  * Super-connected Proxies acting as operational fronts.
+* **Risk Prioritization:** Systematic categorization of risk levels (Low, Medium, High, Critical) to streamline and prioritize compliance investigation workflows.
 
-```
-enterprise-network-analytics/
-├── config/                   # Cấu hình tất cả services
-│   ├── settings.py           # Pydantic settings từ .env
-│   ├── spark_config.py       # SparkSession factory
-│   ├── neo4j_config.py       # Neo4j driver + constraints
-│   └── kafka_config.py       # Kafka producer/consumer config
-├── data/
-│   ├── raw/                  # Dữ liệu thô đầu vào (CSV/JSON)
-│   ├── processed/            # Dữ liệu sau ETL
-│   └── schemas/              # Pydantic + PySpark schemas
-├── ingestion/
-│   ├── kafka_producer.py     # Publish events vào Kafka
-│   ├── kafka_consumer.py     # Consume và xử lý events
-│   └── batch_ingestion.py    # Upload batch files lên MinIO
-├── processing/
-│   └── spark_jobs/
-│       ├── company_etl.py    # ETL cho dữ liệu công ty
-│       └── relationship_etl.py
-├── graph/
-│   ├── neo4j_loader.py       # Load DataFrames vào Neo4j
-│   ├── graph_queries.py      # Cypher query wrappers
-│   └── algorithms/
-│       └── graph_algorithms.py  # PageRank, Centrality, Louvain
-├── analytics/
-│   ├── fraud_detection/
-│   │   └── rule_based.py     # Rule-based fraud detection
-│   ├── ownership/
-│   │   └── cross_ownership.py   # UBO, sở hữu chéo
-│   └── risk/
-│       └── risk_scoring.py   # Risk scoring engine
-├── ai/
-│   ├── llm_integration.py    # LLM Q&A về mạng lưới
-│   └── graph_embedding.py    # Node2Vec embeddings
-├── pipeline/
-│   ├── batch_pipeline.py     # Batch pipeline orchestration
-│   ├── streaming_pipeline.py # Kafka streaming pipeline
-│   └── orchestration/
-│       └── airflow_dags/
-│           └── enterprise_network_dag.py
-├── api/
-│   ├── main.py               # FastAPI app
-│   └── routes/
-│       ├── companies.py
-│       ├── analytics.py
-│       ├── graph_api.py
-│       └── ai_api.py
-├── tests/                    # Unit & integration tests
-├── notebooks/                # Jupyter notebooks phân tích
-├── docker-compose.yml
-├── pyproject.toml
-└── .env.example
-```
+### 3. Ownership Structure Analysis
+* Algorithmic computation and retrieval of Ultimate Beneficial Owners (UBO), systematically dissecting multi-layered, cross-border ownership hierarchies.
 
-## Khởi Chạy Nhanh
+### 4. Enterprise GenAI Assistant
+* Integration of a Natural Language Processing (NLP) interface, allowing users to query and interrogate the data network directly.
+* Agnostic support for premier LLM platforms (Gemini, Llama/Groq, OpenAI) configured to translate mathematical graph interactions into comprehensive, actionable business intelligence summaries.
 
-```bash
-# 1. Copy và cấu hình env
-cp .env.example .env
+---
 
-# 2. Khởi động toàn bộ infrastructure
-docker compose up -d
+## Applied Theories and Algorithms
 
-# 3. Cài Python dependencies
-pip install -e ".[dev]"
+The system is engineered upon the fundamental academic principles of Network Science and modern Data Analytics:
 
-# 4. Chạy batch pipeline
-python -m pipeline.batch_pipeline
+### 1. Graph Data Science (GDS)
+The platform utilizes specialized graph computing engines to execute analytical operations beyond the capabilities of traditional Relational Database Management Systems (RDBMS):
+* **Centrality Algorithms (PageRank & Degree Centrality):** Evaluates the concentration of influence or capital flow. High centrality scores indicate "Hubs" orchestrating financial or informational streams across macro networks.
+* **Weakly Connected Components (WCC):** Identifies disparate sub-networks within the macro graph—critical for discovering hidden economic conglomerates that appear functionally independent but are structurally linked via shared proxy nodes.
+* **Path Finding:** Deploys shortest-path traversal heuristics to uncover sophisticated, concealed topologies between targeted entities.
 
-# 5. Chạy streaming pipeline (Kafka)
-python -m pipeline.streaming_pipeline
+### 2. GraphRAG (Retrieval-Augmented Generation on Graphs)
+Distinguished from standard Vector Similarity RAG architectures, this system implements **GraphRAG**:
+* The AI engine utilizes semantic context to generate structural graph queries (e.g., Cypher syntax), dynamically extracting precise topological sub-graphs.
+* By analyzing exact nodes and deterministic relationship sequences from the primary database, the AI strictly mitigates data hallucination, yielding definitive intelligence and natural language analysis of deterministic cross-ownership constraints.
 
-# 6. Khởi động API
-uvicorn api.main:app --reload --port 8000
-```
-
-## Services & Ports
-
-| Service | URL | Mô tả |
-|---|---|---|
-| FastAPI | http://localhost:8000/docs | REST API + Swagger UI |
-| Neo4j Browser | http://localhost:7474 | Graph database UI |
-| Kafka UI | http://localhost:8080 | Monitor Kafka topics |
-| Spark Master | http://localhost:8082 | Spark cluster UI |
-| MLflow | http://localhost:5000 | Experiment tracking |
-| Airflow | http://localhost:8083 | Pipeline scheduling |
-| MinIO | http://localhost:9001 | Object storage UI |
-
-## Các Module Phân Tích
-
-| Module | Mô tả |
-|---|---|
-| `graph/algorithms/graph_algorithms.py` | PageRank, Betweenness, Louvain |
-| `analytics/fraud_detection/rule_based.py` | Shell company, circular ownership, PEP/Sanctions |
-| `analytics/ownership/cross_ownership.py` | UBO chain, sở hữu chéo |
-| `analytics/risk/risk_scoring.py` | Risk score tổng hợp (0.0–1.0) |
-| `ai/llm_integration.py` | Q&A tiếng Việt về mạng lưới |
-| `ai/graph_embedding.py` | Node2Vec để tìm công ty tương đồng |
-
-## Yêu Cầu
-
-- Docker & Docker Compose
-- Python 3.11+
-- Java 11+ (PySpark)
+### 3. Risk Scoring Model
+Standardized against modern Anti-Money Laundering (AML) and Know Your Customer (KYC) risk assessment methodologies:
+* **Seed Risk:** Deterministic identification of base entities against international blacklists, Politically Exposed Persons (PEPs) databases, and sanctioned registries.
+* **Risk Propagation:** Stochastic risk scores propagate and systematically decay as they traverse child nodes in the graph topology. For instance, a subsidiary definitively tied to a sanctioned parent entity mathematically inherits linked infected risk constraints.

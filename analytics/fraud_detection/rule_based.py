@@ -29,51 +29,51 @@ class FraudAlert:
 class RuleBasedFraudDetector:
 
     SHELL_COMPANY_CYPHER = """
-    MATCH (c:Company)
-    WHERE c.status = 'active'
-      AND c.charter_capital < 100000000
-      AND (c.is_listed IS NULL OR c.is_listed = false)
-      AND NOT EXISTS { MATCH (c)-[:RELATIONSHIP {rel_type:'SUPPLIER'}]->() }
-    OPTIONAL MATCH (c)-[r:RELATIONSHIP {rel_type:'SHAREHOLDER'}]->(:Company)
-    WITH c, COUNT(r) AS investee_count
-    WHERE investee_count >= 3
-    RETURN c.company_id AS entity_id, c.name AS name, 'Company' AS type,
-           investee_count, c.charter_capital AS capital
-    ORDER BY investee_count DESC LIMIT 200
+    MATCH (a:Address)<-[r:RELATIONSHIP]-(c:Company)
+    WITH a, count(c) as companies_count
+    WHERE companies_count > 100
+    RETURN a.node_id AS entity_id, a.address AS name, 'Address' AS type,
+           companies_count AS investee_count, 0 AS capital
+    ORDER BY investee_count DESC LIMIT 5
     """
 
     CIRCULAR_OWNERSHIP_CYPHER = """
-    MATCH path = (c:Company)-[:RELATIONSHIP*2..6 {rel_type:'SHAREHOLDER'}]->(c)
-    WITH c, length(path) AS cycle_len, [n IN nodes(path) | n.name] AS cycle
-    RETURN c.company_id AS entity_id, c.name AS name, 'Company' AS type,
+    MATCH path = (c:Company)-[:RELATIONSHIP*2..3]->(c)
+    WITH c, length(path) AS cycle_len, [n IN nodes(path) | coalesce(n.name, n.node_id)] AS cycle
+    RETURN c.node_id AS entity_id, coalesce(c.name, c.node_id) AS name, 'Company' AS type,
            cycle_len, cycle
-    LIMIT 100
+    LIMIT 5
     """
 
     PEP_CONNECTION_CYPHER = """
-    MATCH (p:Person {is_pep: true})-[:RELATIONSHIP]->(c:Company)
-    RETURN c.company_id AS entity_id, c.name AS name, 'Company' AS type,
-           p.person_id AS pep_id, p.full_name AS pep_name
+    MATCH (p:Person)-[:RELATIONSHIP]->(c:Company)
+    WITH p, count(c) as companies_count
+    WHERE companies_count > 500
+    RETURN p.node_id AS entity_id, coalesce(p.name, p.full_name) AS name, 'Person' AS type,
+           p.node_id AS pep_id, coalesce(p.name, p.full_name) AS pep_name, companies_count
+    LIMIT 5
     """
 
     SANCTIONED_CYPHER = """
-    MATCH (p:Person {is_sanctioned: true})-[:RELATIONSHIP]->(c:Company)
-    RETURN c.company_id AS entity_id, c.name AS name, 'Company' AS type,
-           p.person_id AS sanctioned_id, p.full_name AS sanctioned_name
+    MATCH (p:Person)-[:RELATIONSHIP]->(c:Company)
+    WHERE p.is_sanctioned = true OR p.name CONTAINS 'SANCTION' OR c.name CONTAINS 'SANCTION'
+    RETURN c.node_id AS entity_id, coalesce(c.name, c.node_id) AS name, 'Company' AS type,
+           p.node_id AS sanctioned_id, coalesce(p.name, p.full_name) AS sanctioned_name
+    LIMIT 5
     """
 
     def run_all_rules(self) -> list[FraudAlert]:
         alerts: list[FraudAlert] = []
 
         with Neo4jConnection.session() as s:
-            # Shell companies
+            # Shell companies / Mass Registration
             for r in s.run(self.SHELL_COMPANY_CYPHER):
                 alerts.append(FraudAlert(
                     entity_id=r["entity_id"], entity_name=r["name"],
-                    entity_type=r["type"], alert_type="shell_company",
+                    entity_type=r["type"], alert_type="mass_registration",
                     level=AlertLevel.HIGH, score=0.75,
-                    description=f"Vốn thấp ({r['capital']:,.0f} VND) nhưng sở hữu {r['investee_count']} công ty.",
-                    evidence={"investee_count": r["investee_count"], "capital": r["capital"]},
+                    description=f"Địa chỉ bưu điện ảo có {r['investee_count']} công ty đăng ký.",
+                    evidence={"companies_count": r["investee_count"]},
                 ))
 
             # Circular ownership
@@ -82,17 +82,17 @@ class RuleBasedFraudDetector:
                     entity_id=r["entity_id"], entity_name=r["name"],
                     entity_type=r["type"], alert_type="circular_ownership",
                     level=AlertLevel.CRITICAL, score=0.90,
-                    description=f"Sở hữu vòng tròn {r['cycle_len']} bước.",
+                    description=f"Sở hữu vòng tròn {r['cycle_len']} đỉnh.",
                     evidence={"cycle": r["cycle"], "depth": r["cycle_len"]},
                 ))
 
-            # PEP connections
+            # PEP connections / Super Nodes
             for r in s.run(self.PEP_CONNECTION_CYPHER):
                 alerts.append(FraudAlert(
                     entity_id=r["entity_id"], entity_name=r["name"],
-                    entity_type=r["type"], alert_type="pep_connection",
+                    entity_type=r["type"], alert_type="high_risk_officer",
                     level=AlertLevel.MEDIUM, score=0.50,
-                    description=f"Kết nối với PEP: {r['pep_name']}.",
+                    description=f"Thực thể siêu kết nối với {r['companies_count']} công ty.",
                     evidence={"pep_id": r["pep_id"]},
                 ))
 

@@ -8,6 +8,8 @@ from loguru import logger
 from config.spark_config import create_spark_session
 from config.neo4j_config import Neo4jConnection, setup_constraints_and_indexes
 from config.kafka_config import create_topics_if_not_exist
+from config.settings import settings
+from data.schemas.enterprise_schemas import PERSON_SPARK_SCHEMA, ADDRESS_SPARK_SCHEMA
 from processing.spark_jobs.company_etl import run_company_etl
 from processing.spark_jobs.relationship_etl import run_relationship_etl
 from graph.neo4j_loader import Neo4jLoader
@@ -77,6 +79,22 @@ class BatchPipeline:
                 company_df = spark.read.format("delta").load("s3a://ena-processed/companies")
                 rel_df = spark.read.format("delta").load("s3a://ena-processed/relationships")
                 loader.load_companies(company_df)
+                persons_path = f"s3a://{settings.minio_bucket_raw}/persons/"
+                addresses_path = f"s3a://{settings.minio_bucket_raw}/addresses/"
+                persons_df = (
+                    spark.read
+                    .option("header", True)
+                    .schema(PERSON_SPARK_SCHEMA)
+                    .csv(persons_path)
+                )
+                addresses_df = (
+                    spark.read
+                    .option("header", True)
+                    .schema(ADDRESS_SPARK_SCHEMA)
+                    .csv(addresses_path)
+                )
+                loader.load_persons(persons_df)
+                loader.load_addresses(addresses_df)
                 loader.load_relationships(rel_df)
 
             self._stage(result, "neo4j_load", load_graph)

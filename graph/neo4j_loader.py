@@ -12,7 +12,8 @@ BATCH_SIZE = 1_000
 MERGE_COMPANY = """
 UNWIND $batch AS row
 MERGE (c:Company {company_id: row.company_id})
-SET c.name = row.name, c.tax_code = row.tax_code,
+SET c:Entity, c.node_id = row.company_id,
+    c.name = row.name, c.tax_code = row.tax_code,
     c.company_type = row.company_type, c.status = row.status,
     c.industry_code = row.industry_code, c.charter_capital = row.charter_capital,
     c.province = row.province, c.country = row.country,
@@ -24,29 +25,49 @@ SET i.name = row.industry_name
 MERGE (c)-[:BELONGS_TO]->(i)
 """
 
+MERGE_PERSON = """
+UNWIND $batch AS row
+MERGE (p:Person {person_id: row.person_id})
+SET p:Entity, p.node_id = row.person_id,
+    p.full_name = row.full_name,
+    p.nationality = row.nationality,
+    p.is_pep = row.is_pep,
+    p.is_sanctioned = row.is_sanctioned,
+    p.updated_at = datetime()
+"""
+
+MERGE_ADDRESS = """
+UNWIND $batch AS row
+MERGE (a:Address {address_id: row.address_id})
+SET a:Entity, a.node_id = row.address_id,
+    a.address = row.address,
+    a.name = row.name,
+    a.country = row.country,
+    a.updated_at = datetime()
+"""
+
 MERGE_RELATIONSHIP = """
 UNWIND $batch AS row
-CALL {
-    WITH row
-    MATCH (source) WHERE
-        (source:Company AND source.company_id = row.source_id) OR
-        (source:Person  AND source.person_id  = row.source_id)
-    MATCH (target) WHERE
-        (target:Company AND target.company_id = row.target_id) OR
-        (target:Person  AND target.person_id  = row.target_id)
-    MERGE (source)-[r:RELATIONSHIP {rel_type: row.rel_type}]->(target)
-    SET r.ownership_percent = row.ownership_percent,
-        r.ownership_tier    = row.ownership_tier,
-        r.is_controlling    = row.is_controlling,
-        r.is_active         = row.is_active,
-        r.updated_at        = datetime()
-}
+MATCH (source:Entity {node_id: row.source_id})
+MATCH (target:Entity {node_id: row.target_id})
+MERGE (source)-[r:RELATIONSHIP {rel_type: row.rel_type}]->(target)
+SET r.ownership_percent = row.ownership_percent,
+    r.ownership_tier    = row.ownership_tier,
+    r.is_controlling    = row.is_controlling,
+    r.is_active         = row.is_active,
+    r.updated_at        = datetime()
 """
 
 
 class Neo4jLoader:
     def load_companies(self, df: DataFrame) -> int:
         return self._load(df, MERGE_COMPANY, "Company")
+
+    def load_persons(self, df: DataFrame) -> int:
+        return self._load(df, MERGE_PERSON, "Person")
+
+    def load_addresses(self, df: DataFrame) -> int:
+        return self._load(df, MERGE_ADDRESS, "Address")
 
     def load_relationships(self, df: DataFrame) -> int:
         return self._load(df, MERGE_RELATIONSHIP, "Relationship")

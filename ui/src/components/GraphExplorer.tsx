@@ -1,0 +1,698 @@
+import { useRef, useEffect, useMemo, useState } from 'react';
+import ForceGraph2D from 'react-force-graph-2d';
+import { translations, type Lang } from '../i18n';
+import {
+  getBlastRadius,
+  getInvestigationSubgraph,
+  getShortestRiskPath,
+  type BlastRadiusResult,
+  type RiskPathResult,
+} from '../services/api';
+
+type Props = {
+  lang: Lang;
+  initialSearch?: string;
+  investigationSeed?: { entityName: string; alertType: string } | null;
+  onSummaryChange?: (summary: { nodes: number; links: number; hubs: string[] }) => void;
+  onExportFocusToAi?: (prompt: string) => void;
+  onFrameContextChange?: (context: string) => void;
+};
+
+export default function GraphExplorer({
+  lang,
+  initialSearch = '',
+  investigationSeed = null,
+  onSummaryChange,
+  onExportFocusToAi,
+  onFrameContextChange,
+}: Props) {
+  const t = translations[lang];
+  const [data, setData] = useState<{nodes: any[], links: any[]}>({ nodes: [], links: [] });
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [search, setSearch] = useState(initialSearch);
+  const [minDegree, setMinDegree] = useState(0);
+  const [freezeLayout, setFreezeLayout] = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [riskPath, setRiskPath] = useState<RiskPathResult | null>(null);
+  const [blastRadius, setBlastRadius] = useState<BlastRadiusResult | null>(null);
+  const [investigationLoading, setInvestigationLoading] = useState(false);
+  const [investigationNodeIds, setInvestigationNodeIds] = useState<Set<string>>(new Set());
+  const [investigationLinkKeys, setInvestigationLinkKeys] = useState<Set<string>>(new Set());
+  const [frameMode, setFrameMode] = useState(false);
+  const [isDraggingFrame, setIsDraggingFrame] = useState(false);
+  const [frameStart, setFrameStart] = useState<{ x: number; y: number } | null>(null);
+  const [frameEnd, setFrameEnd] = useState<{ x: number; y: number } | null>(null);
+  const [framedNodeIds, setFramedNodeIds] = useState<string[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const fgRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (initialSearch) {
+      setSearch(initialSearch);
+    }
+  }, [initialSearch]);
+
+  useEffect(() => {
+    if (!investigationSeed) {
+      return;
+    }
+
+    setInvestigationLoading(true);
+    setSearch(investigationSeed.entityName);
+
+    Promise.allSettled([
+      getInvestigationSubgraph(investigationSeed.entityName, investigationSeed.alertType, 2),
+      getShortestRiskPath(investigationSeed.entityName),
+      getBlastRadius(investigationSeed.entityName),
+    ])
+      .then(([subgraphResult, riskPathResult, blastResult]) => {
+        if (subgraphResult.status === 'fulfilled') {
+          const nodeIdSet = new Set(subgraphResult.value.nodes.map((n) => String(n.id)));
+          const linkKeySet = new Set(
+            subgraphResult.value.links.map((l) => `${String(l.source)}::${String(l.target)}::${String(l.label || '')}`),
+          );
+          const graph = {
+            nodes: subgraphResult.value.nodes.map((n) => ({
+              ...n,
+              val: n.risk && n.risk > 0 ? Math.max(4, n.risk * 10) : 4,
+            })),
+            links: subgraphResult.value.links.map((l) => ({
+              ...l,
+              value: Math.max(1, Number(l.weight || 1)),
+            })),
+          };
+          setInvestigationNodeIds(nodeIdSet);
+          setInvestigationLinkKeys(linkKeySet);
+          setData(graph as any);
+        }
+        if (riskPathResult.status === 'fulfilled') {
+          setRiskPath(riskPathResult.value);
+        }
+        if (blastResult.status === 'fulfilled') {
+          setBlastRadius(blastResult.value);
+        }
+      })
+      .finally(() => setInvestigationLoading(false));
+  }, [investigationSeed]);
+
+  useEffect(() => {
+    if (investigationSeed) {
+      return;
+    }
+    setInvestigationNodeIds(new Set());
+    setInvestigationLinkKeys(new Set());
+  }, [investigationSeed]);
+
+  const [repulsionStrength, setRepulsionStrength] = useState(() => Number(localStorage.getItem('app-graph-repulsion')) || 150);
+  const [linkDistance, setLinkDistance] = useState(() => Number(localStorage.getItem('app-graph-link-dist')) || 30);
+
+  const getId = (value: any): string => {
+    if (typeof value === 'object' && value !== null) {
+      return String(value.id ?? value.node_id ?? '');
+    }
+    return String(value ?? '');
+  };
+
+  const fetchGraphData = (type = 'default') => {
+    const baseUrl = localStorage.getItem('app-api-url') || 'http://localhost:8000';
+    let url = `${baseUrl}/api/v1/graph/network?limit=250`;
+    if (type === 'pagerank') {
+      url += "&order_by=pagerank";
+    }
+
+    fetch(url)
+      .then(res => res.json())
+      .then(json => {
+        if (!json.nodes || !json.links) return;
+        json.nodes.forEach((n: any) => { 
+            if (!n.val) n.val = 3; 
+            if (n.pagerank && n.pagerank > 0) {
+               n.val = Math.max(3, n.pagerank * 50);
+            }
+        });
+        json.links.forEach((l: any) => l.value = 1);
+
+        if (onSummaryChange) {
+          const sorted = [...json.nodes]
+            .sort((a: any, b: any) => (b.val || 0) - (a.val || 0))
+            .slice(0, 3)
+            .map((n: any) => n.name);
+          onSummaryChange({
+            nodes: json.nodes.length,
+            links: json.links.length,
+            hubs: sorted
+          });
+        }
+        setData(json);
+      })
+      .catch(err => console.error("Error fetching graph data:", err));
+  };
+
+  useEffect(() => {
+    fetchGraphData();
+  }, []);
+
+  useEffect(() => {
+    const handleSettingsChange = () => {
+      setRepulsionStrength(Number(localStorage.getItem('app-graph-repulsion')) || 150);
+      setLinkDistance(Number(localStorage.getItem('app-graph-link-dist')) || 30);
+      fetchGraphData(); // refresh if API changed
+    };
+
+    window.addEventListener('app-settings-changed', handleSettingsChange);
+    return () => window.removeEventListener('app-settings-changed', handleSettingsChange);
+  }, []);
+
+  useEffect(() => {
+    if (fgRef.current && (data.nodes.length || data.links.length)) {
+      fgRef.current.d3Force('charge').strength(-repulsionStrength).distanceMax(8000);
+      fgRef.current.d3Force('link').distance(linkDistance);
+      if (!freezeLayout && document.documentElement.getAttribute('data-theme')) {
+        setTimeout(() => fgRef.current?.d3ReheatSimulation(), 50);
+      }
+    }
+  }, [repulsionStrength, linkDistance, data, freezeLayout]);
+
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        setDimensions({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight
+        });
+      }
+    };
+    
+    window.addEventListener('resize', updateDimensions);
+    setTimeout(updateDimensions, 100);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, []);
+
+  const neighborMap = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const l of data.links) {
+      const source = getId((l as any).source);
+      const target = getId((l as any).target);
+      if (!source || !target) continue;
+      if (!map.has(source)) map.set(source, new Set());
+      if (!map.has(target)) map.set(target, new Set());
+      map.get(source)!.add(target);
+      map.get(target)!.add(source);
+    }
+    return map;
+  }, [data]);
+
+  const degreeMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const l of data.links) {
+      const source = getId((l as any).source);
+      const target = getId((l as any).target);
+      map.set(source, (map.get(source) || 0) + 1);
+      map.set(target, (map.get(target) || 0) + 1);
+    }
+    return map;
+  }, [data]);
+
+  const highlightedIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (selectedNodeId) {
+      ids.add(selectedNodeId);
+      const neighbors = neighborMap.get(selectedNodeId);
+      neighbors?.forEach((id) => ids.add(id));
+    }
+
+    const query = search.trim().toLowerCase();
+    if (query) {
+      for (const n of data.nodes) {
+        const id = String(n.id);
+        const name = String(n.name || '').toLowerCase();
+        if (name.includes(query) || id.includes(query)) {
+          ids.add(id);
+          const neighbors = neighborMap.get(id);
+          neighbors?.forEach((nid) => ids.add(nid));
+        }
+      }
+    }
+    return ids;
+  }, [selectedNodeId, search, data.nodes, neighborMap]);
+
+  const getNodeColor = (node: any) => {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const nodeId = getId(node.id ?? node);
+    const isFocused = highlightedIds.has(nodeId);
+    const isInvestigationNode = investigationNodeIds.has(nodeId);
+    
+    if (!isFocused && (selectedNodeId || search.trim())) {
+      return isLight ? 'rgba(71,85,105,0.2)' : 'rgba(100,116,139,0.25)';
+    }
+
+    if (isInvestigationNode) {
+      return isLight ? '#b91c1c' : '#f87171';
+    }
+
+    if (node.group === 1) return isFocused ? (isLight ? '#1d4ed8' : '#60a5fa') : (isLight ? '#2563eb' : '#3b82f6');
+    if (node.group === 3) return isFocused ? (isLight ? '#b91c1c' : '#f87171') : (isLight ? '#dc2626' : '#ef4444');
+    return isFocused ? (isLight ? '#475569' : '#cbd5e1') : (isLight ? '#94a3b8' : '#64748b');
+  };
+
+  const filteredData = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const visibleNodeIds = new Set<string>();
+
+    for (const n of data.nodes) {
+      const nodeId = String(n.id);
+      const degree = degreeMap.get(nodeId) || 0;
+      const inDegree = degree >= minDegree;
+
+      if (query) {
+        if (highlightedIds.has(nodeId)) {
+          visibleNodeIds.add(nodeId);
+        }
+      } else if (inDegree) {
+        visibleNodeIds.add(nodeId);
+      }
+    }
+
+    const nodes = data.nodes.filter((n: any) => visibleNodeIds.has(String(n.id)));
+    const links = data.links.filter((l: any) => {
+      const source = getId(l.source);
+      const target = getId(l.target);
+      return visibleNodeIds.has(source) && visibleNodeIds.has(target);
+    });
+
+    return { nodes, links };
+  }, [data, minDegree, search, degreeMap, highlightedIds]);
+
+  useEffect(() => {
+    if (!fgRef.current) return;
+    if (freezeLayout) {
+      for (const n of data.nodes) {
+        if (typeof n.x === 'number' && typeof n.y === 'number') {
+          n.fx = n.x;
+          n.fy = n.y;
+        }
+      }
+    } else {
+      for (const n of data.nodes) {
+        n.fx = undefined;
+        n.fy = undefined;
+      }
+      setTimeout(() => fgRef.current?.d3ReheatSimulation(), 50);
+    }
+  }, [freezeLayout, data.nodes]);
+
+  const handleZoomToFit = () => {
+    if (!fgRef.current) return;
+    fgRef.current.zoomToFit(500, 90);
+  };
+
+  const handleExpandGraph = () => {
+    setRepulsionStrength(prev => {
+      const newVal = prev >= 2000 ? (Number(localStorage.getItem('app-graph-repulsion')) || 150) : 3000;
+      return newVal;
+    });
+    setLinkDistance(prev => {
+      const newVal = prev >= 200 ? (Number(localStorage.getItem('app-graph-link-dist')) || 30) : 350;
+      return newVal;
+    });
+    if (!freezeLayout) {
+      setTimeout(() => fgRef.current?.d3ReheatSimulation(), 50);
+    }
+  };
+
+  const clearFocus = () => {
+    setSelectedNodeId(null);
+    setSearch('');
+    setMinDegree(0);
+    setFramedNodeIds([]);
+    setFrameStart(null);
+    setFrameEnd(null);
+  };
+
+  const framedNodes = useMemo(() => {
+    const idSet = new Set(framedNodeIds);
+    return filteredData.nodes.filter((n: any) => idSet.has(String(n.id)));
+  }, [framedNodeIds, filteredData.nodes]);
+
+  const framedLinkCount = useMemo(() => {
+    if (framedNodeIds.length === 0) {
+      return 0;
+    }
+    const idSet = new Set(framedNodeIds);
+    return filteredData.links.filter((l: any) => {
+      const source = getId(l.source);
+      const target = getId(l.target);
+      return idSet.has(source) && idSet.has(target);
+    }).length;
+  }, [framedNodeIds, filteredData.links]);
+
+  const getRelativePoint = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+  };
+
+  const computeFramedSelection = (start: { x: number; y: number }, end: { x: number; y: number }) => {
+    if (!fgRef.current) {
+      return;
+    }
+    const sx = Math.min(start.x, end.x);
+    const sy = Math.min(start.y, end.y);
+    const ex = Math.max(start.x, end.x);
+    const ey = Math.max(start.y, end.y);
+
+    const gStart = fgRef.current.screen2GraphCoords(sx, sy);
+    const gEnd = fgRef.current.screen2GraphCoords(ex, ey);
+    const gxMin = Math.min(gStart.x, gEnd.x);
+    const gxMax = Math.max(gStart.x, gEnd.x);
+    const gyMin = Math.min(gStart.y, gEnd.y);
+    const gyMax = Math.max(gStart.y, gEnd.y);
+
+    const selected = filteredData.nodes
+      .filter((n: any) => {
+        if (typeof n.x !== 'number' || typeof n.y !== 'number') {
+          return false;
+        }
+        return n.x >= gxMin && n.x <= gxMax && n.y >= gyMin && n.y <= gyMax;
+      })
+      .map((n: any) => String(n.id));
+
+    setFramedNodeIds(selected);
+  };
+
+  const frameRect = useMemo(() => {
+    if (!frameStart || !frameEnd) {
+      return null;
+    }
+    const left = Math.min(frameStart.x, frameEnd.x);
+    const top = Math.min(frameStart.y, frameEnd.y);
+    const width = Math.abs(frameEnd.x - frameStart.x);
+    const height = Math.abs(frameEnd.y - frameStart.y);
+    return { left, top, width, height };
+  }, [frameStart, frameEnd]);
+
+  const exportFramedNodesToAi = () => {
+    if (!framedNodes.length) {
+      return;
+    }
+    const uniqueNodes = framedNodes
+      .map((n: any) => ({ id: String(n.id), name: String(n.name || n.id) }))
+      .filter((n, idx, arr) => arr.findIndex((x) => x.id === n.id) === idx);
+    const nodeLabels = uniqueNodes.slice(0, 40).map((n) => `${n.name} [${n.id}]`);
+    const nodeIds = uniqueNodes.slice(0, 120).map((n) => n.id);
+
+    const prompt = [
+      `[FRAME_FOCUS_ACTIVE] Analyze ONLY the selected graph frame containing ${framedNodes.length} nodes and ${framedLinkCount} links.`,
+      `FRAME_NODE_COUNT: ${uniqueNodes.length}.`,
+      `FRAME_LINK_COUNT: ${framedLinkCount}.`,
+      `FRAME_NODE_IDS: ${nodeIds.join(',')}.`,
+      `Selected entities (strict scope): ${nodeLabels.join(', ')}.`,
+      'Do not generalize to the whole graph. Prioritize suspicious ownership loops, high-risk hubs, sanction exposure, and top 3 actionable investigation steps for this framed region only.',
+    ].join(' ');
+    onExportFocusToAi?.(prompt);
+  };
+
+  useEffect(() => {
+    if (!onFrameContextChange) {
+      return;
+    }
+    if (!framedNodes.length) {
+      onFrameContextChange('');
+      return;
+    }
+    const uniqueNodes = framedNodes
+      .map((n: any) => ({ id: String(n.id), name: String(n.name || n.id) }))
+      .filter((n, idx, arr) => arr.findIndex((x) => x.id === n.id) === idx);
+    const labels = uniqueNodes
+      .slice(0, 30)
+      .map((n) => `${n.name} [${n.id}]`)
+      .join(', ');
+    const ids = uniqueNodes.slice(0, 150).map((n) => n.id).join(',');
+
+    onFrameContextChange(
+      `Framed focus: ${uniqueNodes.length} nodes, ${framedLinkCount} links. FRAME_NODE_IDS: ${ids}. Selected nodes: ${labels}.`,
+    );
+  }, [framedNodes, framedLinkCount, onFrameContextChange]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', gap: '0.7rem', alignItems: 'center' }}>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t.graphSearchPlaceholder}
+          style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
+        />
+        <select
+          value={String(minDegree)}
+          onChange={(e) => setMinDegree(Number(e.target.value))}
+          style={{ width: '100%', padding: '0.6rem 0.6rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
+        >
+          <option value="0">{t.graphDegreeFilter}: 0+</option>
+          <option value="2">{t.graphDegreeFilter}: 2+</option>
+          <option value="5">{t.graphDegreeFilter}: 5+</option>
+          <option value="10">{t.graphDegreeFilter}: 10+</option>
+          <option value="20">{t.graphDegreeFilter}: 20+</option>
+        </select>
+        <button
+          onClick={() => setFreezeLayout((v) => !v)}
+          style={{ padding: '0.6rem 0.8rem', background: freezeLayout ? 'var(--accent-warning)' : 'var(--bg-surface-hover)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', cursor: 'pointer' }}
+        >
+          {freezeLayout ? t.graphUnfreeze : t.graphFreeze}
+        </button>
+        <button
+          onClick={handleZoomToFit}
+          style={{ padding: '0.6rem 0.8rem', background: 'var(--bg-surface-hover)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', cursor: 'pointer' }}
+        >
+          {t.graphZoomFit}
+        </button>
+        <button
+          onClick={handleExpandGraph}
+          style={{ padding: '0.6rem 0.8rem', background: repulsionStrength >= 2000 ? 'var(--accent-primary)' : 'var(--bg-surface-hover)', color: repulsionStrength >= 2000 ? 'white' : 'var(--text-primary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', cursor: 'pointer' }}
+        >
+          {repulsionStrength >= 2000 ? t.graphCollapse : t.graphExpand}
+        </button>
+        <button
+          onClick={clearFocus}
+          style={{ padding: '0.6rem 0.8rem', background: 'var(--bg-surface-hover)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', cursor: 'pointer' }}
+        >
+          {t.graphClearFocus}
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <button onClick={() => fetchGraphData('default')} style={{ padding: '0.5rem 1rem', background: 'var(--bg-surface-hover)', color: 'var(--text-primary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', cursor: 'pointer' }}>
+          {t.graphApplyPhysics}
+        </button>
+        <button onClick={() => fetchGraphData('pagerank')} style={{ padding: '0.5rem 1rem', background: 'var(--accent-primary)', color: 'white', borderRadius: 'var(--radius-md)', border: 'none', fontWeight: 600, cursor: 'pointer' }}>
+          {t.graphRunPagerank}
+        </button>
+        <button
+          onClick={() => {
+            setFrameMode((v) => !v);
+            setFrameStart(null);
+            setFrameEnd(null);
+            setIsDraggingFrame(false);
+          }}
+          style={{
+            padding: '0.5rem 1rem',
+            background: frameMode ? 'var(--accent-warning)' : 'var(--bg-surface-hover)',
+            color: 'var(--text-primary)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-light)',
+            cursor: 'pointer',
+          }}
+        >
+          {frameMode ? t.graphFrameModeActive : t.graphFrameMode}
+        </button>
+        <button
+          onClick={exportFramedNodesToAi}
+          disabled={!framedNodes.length}
+          style={{
+            padding: '0.5rem 1rem',
+            background: framedNodes.length ? 'var(--accent-primary)' : 'var(--bg-surface-hover)',
+            color: framedNodes.length ? 'white' : 'var(--text-secondary)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-light)',
+            cursor: framedNodes.length ? 'pointer' : 'not-allowed',
+            opacity: framedNodes.length ? 1 : 0.65,
+          }}
+        >
+          {t.graphExportFramedToAi}
+        </button>
+        <div style={{ flex: 1 }}></div>
+        <div style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+          {t.graphResultCount}: {filteredData.nodes.length} {t.graphNodes}, {filteredData.links.length} {t.graphLinks}
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#3b82f6' }}></span> {t.graphHub}
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#64748b' }}></span> {t.graphStandard}
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }}></span> {t.graphHighRisk}
+          </span>
+        </div>
+      </div>
+
+      {framedNodes.length > 0 && (
+        <div style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+          {t.graphFramedCount}: {framedNodes.length} {t.graphNodes}, {framedLinkCount} {t.graphLinks}
+        </div>
+      )}
+
+      {investigationSeed && (
+        <div className="card" style={{ padding: '0.85rem 1rem' }}>
+          <div style={{ fontWeight: 700, marginBottom: '0.45rem' }}>
+            {t.graphInvestigationFocus}: {investigationSeed.entityName} ({investigationSeed.alertType})
+          </div>
+          {investigationLoading && (
+            <div style={{ color: 'var(--text-secondary)' }}>{t.graphLoadingInvestigationSignals}</div>
+          )}
+          {!investigationLoading && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+              <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '0.6rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.35rem' }}>{t.graphShortestPathToRisk}</div>
+                {riskPath?.hops != null ? (
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                    {riskPath.hops} hops to {riskPath.target}. Path: {riskPath.nodes.join(' -> ')}
+                  </div>
+                ) : (
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{t.graphNoSanctionPath}</div>
+                )}
+              </div>
+              <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '0.6rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.35rem' }}>{t.graphBlastRadius}</div>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  {blastRadius?.impacted_nodes || 0} {t.graphImpactedEntitiesSuffix}, {blastRadius?.high_risk_hits || 0} {t.graphHighRiskNeighborsSuffix}.
+                </div>
+                <div style={{ color: 'var(--accent-danger)', fontSize: '0.8rem', marginTop: '0.35rem', fontWeight: 600 }}>
+                  {t.graphSubgraphHighlighted}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="card" ref={containerRef} style={{ flex: 1, padding: 0, overflow: 'hidden', position: 'relative' }}>
+        {data.nodes.length > 0 && (
+          <ForceGraph2D
+            ref={fgRef}
+            d3AlphaDecay={freezeLayout ? 1 : 0.0228}
+            d3VelocityDecay={freezeLayout ? 1 : 0.4}
+            width={dimensions.width}
+            height={dimensions.height}
+            graphData={filteredData}
+            nodeColor={getNodeColor}
+            nodeRelSize={4}
+            linkColor={(link: any) => {
+              const source = getId(link.source);
+              const target = getId(link.target);
+              const linkedToFocus = highlightedIds.has(source) && highlightedIds.has(target);
+              const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+              const directKey = `${source}::${target}::${String(link.label || '')}`;
+              const reverseKey = `${target}::${source}::${String(link.label || '')}`;
+              const isInvestigationLink = investigationLinkKeys.has(directKey) || investigationLinkKeys.has(reverseKey);
+
+              if (isInvestigationLink) {
+                return isLight ? 'rgba(220,38,38,0.65)' : 'rgba(248,113,113,0.72)';
+              }
+
+              if (selectedNodeId || search.trim()) {
+                return linkedToFocus ? (isLight ? 'rgba(37,99,235,0.45)' : 'rgba(96,165,250,0.45)') : (isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)');
+              }
+              return isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+            }}
+            linkWidth={link => link.value}
+            backgroundColor={document.documentElement.getAttribute('data-theme') === 'light' ? '#ffffff' : '#0f1623'}
+            onNodeClick={(node: any) => setSelectedNodeId(String(node.id))}
+            nodeCanvasObjectMode={() => 'after'}
+            nodeCanvasObject={(node, ctx, globalScale) => {
+              const label = node.name as string;
+              const nodeId = getId((node as any).id ?? node);
+              const isInvestigationNode = investigationNodeIds.has(nodeId);
+              const fontSize = 12 / globalScale;
+              ctx.font = `${fontSize}px Inter, Sans-Serif`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+
+              if (isInvestigationNode) {
+                // Draw a visible ring so investigation subgraph stands out immediately.
+                const ringRadius = (Number((node as any).val) || 4) + 3;
+                ctx.beginPath();
+                ctx.arc((node as any).x || 0, (node as any).y || 0, ringRadius, 0, 2 * Math.PI);
+                ctx.strokeStyle = isLight ? 'rgba(185,28,28,0.95)' : 'rgba(252,165,165,0.95)';
+                ctx.lineWidth = Math.max(1.2, 1.8 / globalScale);
+                ctx.stroke();
+              }
+
+              ctx.fillStyle = node.group === 3 ? (isLight ? 'rgba(220,38,38,0.9)' : 'rgba(239,68,68,0.8)') : (isLight ? 'rgba(15,23,42,0.8)' : 'rgba(255,255,255,0.8)');
+              if (node.val > 4) {
+                 ctx.fillText(label, node.x!, node.y! + 8);
+              }
+            }}
+          />
+        )}
+        {frameMode && (
+          <div
+            onMouseDown={(e) => {
+              const p = getRelativePoint(e);
+              setFrameStart(p);
+              setFrameEnd(p);
+              setIsDraggingFrame(true);
+            }}
+            onMouseMove={(e) => {
+              if (!isDraggingFrame) {
+                return;
+              }
+              setFrameEnd(getRelativePoint(e));
+            }}
+            onMouseUp={() => {
+              if (!frameStart || !frameEnd) {
+                setIsDraggingFrame(false);
+                return;
+              }
+              computeFramedSelection(frameStart, frameEnd);
+              setIsDraggingFrame(false);
+            }}
+            onMouseLeave={() => {
+              if (!isDraggingFrame || !frameStart || !frameEnd) {
+                return;
+              }
+              computeFramedSelection(frameStart, frameEnd);
+              setIsDraggingFrame(false);
+            }}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              cursor: 'crosshair',
+              background: 'transparent',
+              zIndex: 4,
+            }}
+          >
+            {frameRect && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: frameRect.left,
+                  top: frameRect.top,
+                  width: frameRect.width,
+                  height: frameRect.height,
+                  border: '1px dashed #f59e0b',
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

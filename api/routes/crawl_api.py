@@ -16,11 +16,13 @@ from loguru import logger
 
 from ingestion.crawlers.crawler_pipeline import CrawlerPipeline
 from ingestion.crawlers.opensanctions import OpenSanctionsCrawler
+from pipeline.crawl_etl_pipeline import CrawlETLPipeline
 
 router = APIRouter()
 
 _pipeline = CrawlerPipeline(publish_to_kafka=True)
 _sanctions = OpenSanctionsCrawler()
+_etl = CrawlETLPipeline()
 
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -54,6 +56,22 @@ class CrawlRunningResponse(BaseModel):
     sources: list[str]
 
 
+class CrawlETLRequest(BaseModel):
+    sources: list[str] = Field(
+        default_factory=lambda: CrawlETLPipeline.FREE_SOURCES.copy(),
+        description=(
+            "Sources for end-to-end ETL (crawl -> quality gate -> Neo4j load). "
+            "Default uses free/public sources."
+        ),
+    )
+    parallel: bool = Field(default=True, description="Run crawlers in parallel")
+    dry_run: bool = Field(default=False, description="Only crawl + quality gate, skip Neo4j load")
+    source_options: dict[str, dict] = Field(
+        default_factory=dict,
+        description="Override crawler args by source: {source_name: {kwarg: value}}",
+    )
+
+
 # ─── Background task ──────────────────────────────────────────────────────────
 
 def _run_crawl_background(req: CrawlRequest) -> None:
@@ -66,6 +84,19 @@ def _run_crawl_background(req: CrawlRequest) -> None:
         logger.info(f"[crawl-bg] Finished: {report.summary()}")
     except Exception as e:
         logger.error(f"[crawl-bg] Error: {e}")
+
+
+def _run_etl_background(req: CrawlETLRequest) -> None:
+    try:
+        report = _etl.run(
+            sources=req.sources,
+            source_options=req.source_options,
+            parallel=req.parallel,
+            dry_run=req.dry_run,
+        )
+        logger.info(f"[crawl-etl-bg] Finished: {report.summary()}")
+    except Exception as e:
+        logger.error(f"[crawl-etl-bg] Error: {e}")
 
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
@@ -157,6 +188,64 @@ def run_crawlers(req: CrawlRequest, background_tasks: BackgroundTasks):
         message=f"Crawl đã được lên lịch cho {len(req.sources)} nguồn. Kết quả sẽ được upload lên MinIO và publish lên Kafka.",
         sources=req.sources,
     )
+
+
+@router.post(
+    "/etl/run",
+    summary="Chạy ETL crawl->quality->Neo4j (background)",
+    response_model=CrawlRunningResponse,
+    status_code=202,
+)
+def run_crawl_etl(req: CrawlETLRequest, background_tasks: BackgroundTasks):
+    """
+    Trigger end-to-end crawler ETL in background.
+    Includes quality filtering before loading to Neo4j.
+    """
+    valid = set(CrawlerPipeline.ALL_SOURCES)
+    invalid = [s for s in req.sources if s not in valid]
+    if invalid:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown sources: {invalid}. Valid: {sorted(valid)}",
+        )
+
+    background_tasks.add_task(_run_etl_background, req)
+    return CrawlRunningResponse(
+        status="accepted",
+        message=(
+            "Crawl ETL đã được lên lịch (crawl -> quality gate -> Neo4j load). "
+            "Kiểm tra logs API để theo dõi tiến trình."
+        ),
+        sources=req.sources,
+    )
+
+
+@router.post(
+    "/etl/run/sync",
+    summary="Chạy ETL crawl->quality->Neo4j (đồng bộ)",
+)
+def run_crawl_etl_sync(req: CrawlETLRequest):
+    """
+    Run end-to-end crawler ETL synchronously and return a full report.
+    """
+    valid = set(CrawlerPipeline.ALL_SOURCES)
+    invalid = [s for s in req.sources if s not in valid]
+    if invalid:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown sources: {invalid}. Valid: {sorted(valid)}",
+        )
+
+    try:
+        report = _etl.run(
+            sources=req.sources,
+            source_options=req.source_options,
+            parallel=req.parallel,
+            dry_run=req.dry_run,
+        )
+        return report.summary()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post(

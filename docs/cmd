@@ -1,0 +1,23 @@
+docker exec -i ena-neo4j cypher-shell -u neo4j -p ena_password "MATCH ()-[r]->() RETURN count(r);"
+
+2. Chạy thuật toán Graph Data Science (GDS)
+Dữ liệu graph hiện đang thô (raw). Để làm analytics, dự án cần chạy các thư viện thuật toán của Neo4j (nằm trong graph_algorithms.py) để tính toán thông số mạng lưới, ví dụ:
+
+PageRank / Centrality: Đánh giá mức độ quan trọng hoặc trung tâm của một công ty/cá nhân trong mạng lưới.
+Weakly Connected Components (WCC): Tìm các nhóm công ty liên kết ngầm với nhau.
+Path Finding: Tìm đường đi ngắn nhất giữa 2 thực thể để phát hiện sở hữu chéo.
+3. Triển khai các tính năng phân tích nghiệp vụ (Analytics)
+Trong thư mục analytics đang tổ chức các bài toán chuyên sâu nền tảng:
+
+fraud_detection/: Viết các rule rà soát mạng lưới để phát hiện gian lận (ví dụ: chuỗi công ty ma, vòng lặp sở hữu).
+ownership/: Truy vết các chủ sở hữu thực sự cuối cùng (UBO - Ultimate Beneficial Owner).
+risk/: Gán nhãn và chấm điểm rủi ro (Risk Scoring) cho các Node tham gia vào mạng lưới đa vỏ bọc.
+
+4. Khởi chạy luồng Data Mới (Streaming & Crawlers)
+
+Dữ liệu Panama hiện tại là dữ liệu tĩnh nạp sẵn 1 lần (Batch).
+Dự án có mô-đun crawlers và luồng Kafka nằm trong (streaming_pipeline.py) để thu thập dữ liệu thời gian thực từ mạng (OpenCorporates, OpenOwnership, v.v.) rồi đẩy vào luồng ETL tự động hóa trên PySpark.
+5. Ứng dụng AI/LLM / RAG
+
+Sử dụng mô-đun llm_integration.py và graph_embedding.py.
+Cho phép người dùng query natural language vào Graph (Chat với Graph, hỏi đáp: "Cho tôi biết mối quan hệ rủi ro liên quan đến công ty X").

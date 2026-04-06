@@ -19,6 +19,7 @@ def run_company_etl(spark: SparkSession | None = None) -> DataFrame:
     df = (
         spark.read
         .option("header", True)
+        .option("recursiveFileLookup", "true")
         .schema(COMPANY_SPARK_SCHEMA)
         .csv(raw_path)
     )

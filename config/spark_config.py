@@ -31,6 +31,8 @@ def create_spark_session(app_name: str | None = None) -> SparkSession:
             ]),
         )
         .config("spark.sql.adaptive.enabled", "true")
+        .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
+        .config("spark.sql.parquet.datetimeRebaseModeInWrite", "LEGACY")
         .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
         .getOrCreate()
     )
