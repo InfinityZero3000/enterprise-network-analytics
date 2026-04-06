@@ -96,16 +96,6 @@ class Settings(BaseSettings):
     api_host: str = Field("0.0.0.0", validation_alias="API_HOST")
     api_port: int = Field(8000, validation_alias="API_PORT")
     api_key: str = Field("", validation_alias="API_KEY")  # optional; empty = auth disabled
-    api_root_path: str = Field("", validation_alias="API_ROOT_PATH")
-
-    # ── CORS / Gateway ───────────────────────────
-    # Comma-separated list. Example:
-    # CORS_ALLOW_ORIGINS=https://your-ui.vercel.app,https://admin.example.com
-    cors_allow_origins: str = Field("*", validation_alias="CORS_ALLOW_ORIGINS")
-    cors_allow_origin_regex: str = Field("", validation_alias="CORS_ALLOW_ORIGIN_REGEX")
-    cors_allow_credentials: bool = Field(False, validation_alias="CORS_ALLOW_CREDENTIALS")
-    cors_allow_methods: str = Field("*", validation_alias="CORS_ALLOW_METHODS")
-    cors_allow_headers: str = Field("*", validation_alias="CORS_ALLOW_HEADERS")
 
     model_config = SettingsConfigDict(
         env_file=".env",
