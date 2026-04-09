@@ -114,6 +114,45 @@ tail -f ui/ui.log
 **4. Configure AI keys (optional):**
 If you want to use the AI Assistant, open `.env` and set keys such as Gemini/Groq/OpenAI.
 
+### AI API Key Setup (Detailed)
+
+Use at least one provider below.
+
+**1. Create your API key**
+* Gemini: https://aistudio.google.com/app/apikey
+* Groq: https://console.groq.com/keys
+* OpenAI: https://platform.openai.com/api-keys
+* OpenRouter (optional): https://openrouter.ai/keys
+
+**2. Add keys to `.env`**
+```bash
+# Fill at least one key
+GEMINI_API_KEY=
+GROQ_API_KEY=
+OPENAI_API_KEY=
+OPENROUTER_API_KEY=
+
+# Optional model overrides
+GEMINI_MODEL=gemini-2.5-flash
+GROQ_MODEL=llama-3.3-70b-versatile
+OPENAI_MODEL=gpt-4o
+OPENROUTER_MODEL=openai/gpt-4o-mini
+```
+
+**3. Reload backend after updating keys**
+```bash
+docker compose restart api
+```
+
+**4. Verify AI endpoint**
+```bash
+curl -X POST http://localhost:8000/api/v1/ai/ask \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"List top 3 connected companies"}'
+```
+
+If the response includes a non-empty `answer`, AI provider integration is working.
+
 ### Accessing the Platform
 Once initialized, the various graphical interfaces can be accessed at:
 * **Web UI (Graph Explorer):** `http://localhost:5173`

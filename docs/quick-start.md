@@ -2,12 +2,44 @@
 # Khởi động nhanh
 ```
 cd ~/projects/enterprise-network-analytics
-cp .env.example .env          # điền credentials
-docker compose up -d          # khởi động tất cả services
+bash scripts/start.sh         # tự check dependency + tự chạy backend/UI
 ```
 - API: http://localhost:8000/docs
 - Neo4j: http://localhost:7474
 - Kafka UI: http://localhost:8080
+
+# lấy API key AI
+
+1. Tạo key từ một trong các nhà cung cấp:
+	 - Gemini: https://aistudio.google.com/app/apikey
+	 - Groq: https://console.groq.com/keys
+	 - OpenAI: https://platform.openai.com/api-keys
+	 - OpenRouter (tuỳ chọn): https://openrouter.ai/keys
+
+2. Điền key vào `.env` (ít nhất 1 key):
+
+```
+GEMINI_API_KEY=
+GROQ_API_KEY=
+OPENAI_API_KEY=
+OPENROUTER_API_KEY=
+```
+
+3. Nạp lại API backend:
+
+```
+docker compose restart api
+```
+
+4. Test nhanh AI endpoint:
+
+```
+curl -X POST http://localhost:8000/api/v1/ai/ask \
+	-H 'Content-Type: application/json' \
+	-d '{"question":"Top 3 connected companies"}'
+```
+
+Nếu response có `answer` khác rỗng là AI đã hoạt động.
 
 # chạy pipeline thủ công
 

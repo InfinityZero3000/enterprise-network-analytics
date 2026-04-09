@@ -114,6 +114,45 @@ tail -f ui/ui.log
 **4. Cấu hình API key AI (tuỳ chọn):**
 Nếu cần dùng Trợ lý AI, mở `.env` và điền key (Gemini/Groq/OpenAI).
 
+### Hướng dẫn lấy API key AI (chi tiết)
+
+Bạn chỉ cần dùng tối thiểu 1 nhà cung cấp dưới đây.
+
+**1. Tạo API key**
+* Gemini: https://aistudio.google.com/app/apikey
+* Groq: https://console.groq.com/keys
+* OpenAI: https://platform.openai.com/api-keys
+* OpenRouter (tuỳ chọn): https://openrouter.ai/keys
+
+**2. Điền key vào file `.env`**
+```bash
+# Điền ít nhất một key
+GEMINI_API_KEY=
+GROQ_API_KEY=
+OPENAI_API_KEY=
+OPENROUTER_API_KEY=
+
+# Tuỳ chọn model
+GEMINI_MODEL=gemini-2.5-flash
+GROQ_MODEL=llama-3.3-70b-versatile
+OPENAI_MODEL=gpt-4o
+OPENROUTER_MODEL=openai/gpt-4o-mini
+```
+
+**3. Nạp lại backend sau khi cập nhật key**
+```bash
+docker compose restart api
+```
+
+**4. Test nhanh endpoint AI**
+```bash
+curl -X POST http://localhost:8000/api/v1/ai/ask \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"Liệt kê 3 công ty có liên kết cao nhất"}'
+```
+
+Nếu response trả về `answer` khác rỗng thì tích hợp AI đang hoạt động.
+
 ### Truy cập các dịch vụ
 Sau khi toàn bộ dịch vụ được triển khai, bạn có thể tương tác với các URL dưới đây:
 * **Web UI (Khám phá đồ thị):** `http://localhost:5173`
