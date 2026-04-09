@@ -5,7 +5,8 @@ import AlertsRisk from './components/AlertsRisk'
 import AIAssistant from './components/AIAssistant'
 import CrawlManager from './components/CrawlManager'
 import Settings from './components/Settings'
-import { translations, type Lang, getAlertDescription } from './i18n'
+import ExecutiveDashboard from './components/ExecutiveDashboard'
+import { translations, type Lang } from './i18n'
 import './App.css'
 
 type GraphNode = {
@@ -171,8 +172,6 @@ function App() {
   const totalRelationships = stats.total_rels || 0;
   const avgDegree = totalEntities > 0 ? ((2 * totalRelationships) / totalEntities).toFixed(2) : '0.00';
   const riskCount = alertsPreview.length;
-  const mixTotal = entityMix.companies + entityMix.persons + entityMix.addresses;
-  const getMixPct = (value: number) => (mixTotal > 0 ? Math.round((value / mixTotal) * 100) : 0);
 
   const dashboardContext = `Dashboard snapshot: ${totalEntities.toLocaleString()} entities, ${totalRelationships.toLocaleString()} relationships, average degree ${avgDegree}, ${riskCount} priority alerts.`;
   const graphContext = `Graph view snapshot: ${graphSummary.nodes.toLocaleString()} nodes and ${graphSummary.links.toLocaleString()} links rendered. Top visible hubs: ${graphSummary.hubs.length > 0 ? graphSummary.hubs.join(', ') : 'not available yet'}.${graphFrameContext ? ` ${graphFrameContext}` : ''}`;
@@ -295,104 +294,20 @@ function App() {
 
         <div className="page-content">
           {activeTab === 'dashboard' && (
-            <div className="dashboard-grid">
-              <div className="card dashboard-hero">
-                <div>
-                  <div className="card-title" style={{ marginBottom: '0.4rem' }}>{t.heroTitle}</div>
-                  <p style={{ color: 'var(--text-secondary)', margin: 0 }}>{t.heroSubtitle}</p>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ color: 'var(--accent-success)', fontWeight: 600 }}>{loading ? t.syncing : t.liveReady}</div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{t.updatedAt}: {updatedAt || '--:--:--'}</div>
-                </div>
-              </div>
-
-              <div className="kpi-grid">
-                <div className="card kpi-card">
-                  <div className="card-title">{t.totalEntities}</div>
-                  <div className="kpi-value" style={{ color: 'var(--accent-primary)' }}>{totalEntities.toLocaleString()}</div>
-                  <div className="kpi-meta">{t.entitiesMeta}</div>
-                </div>
-                <div className="card kpi-card">
-                  <div className="card-title">{t.totalRelationships}</div>
-                  <div className="kpi-value" style={{ color: '#22d3ee' }}>{totalRelationships.toLocaleString()}</div>
-                  <div className="kpi-meta">{t.relMeta}</div>
-                </div>
-                <div className="card kpi-card">
-                  <div className="card-title">{t.avgDegree}</div>
-                  <div className="kpi-value" style={{ color: 'var(--accent-warning)' }}>{avgDegree}</div>
-                  <div className="kpi-meta">{t.degreeMeta}</div>
-                </div>
-                <div className="card kpi-card">
-                  <div className="card-title">{t.priorityAlerts}</div>
-                  <div className="kpi-value" style={{ color: 'var(--accent-danger)' }}>{riskCount}</div>
-                  <div className="kpi-meta">{t.alertsMeta}</div>
-                </div>
-              </div>
-
-              <div className="dashboard-main-panels">
-                <div className="card">
-                  <div className="panel-header">
-                    <h3 style={{ margin: 0 }}>{t.entityComposition}</h3>
-                    <button className="mini-action" onClick={() => setActiveTab('graph')}>{t.openGraph}</button>
-                  </div>
-                  <div style={{ display: 'grid', gap: '0.85rem', marginTop: '1rem' }}>
-                    <div>
-                      <div className="mix-row"><span>{t.companies}</span><span>{entityMix.companies.toLocaleString()} ({getMixPct(entityMix.companies)}%)</span></div>
-                      <div className="mix-track"><div className="mix-fill" style={{ width: `${getMixPct(entityMix.companies)}%`, background: 'var(--accent-primary)' }} /></div>
-                    </div>
-                    <div>
-                      <div className="mix-row"><span>{t.persons}</span><span>{entityMix.persons.toLocaleString()} ({getMixPct(entityMix.persons)}%)</span></div>
-                      <div className="mix-track"><div className="mix-fill" style={{ width: `${getMixPct(entityMix.persons)}%`, background: '#22d3ee' }} /></div>
-                    </div>
-                    <div>
-                      <div className="mix-row"><span>{t.addresses}</span><span>{entityMix.addresses.toLocaleString()} ({getMixPct(entityMix.addresses)}%)</span></div>
-                      <div className="mix-track"><div className="mix-fill" style={{ width: `${getMixPct(entityMix.addresses)}%`, background: 'var(--accent-warning)' }} /></div>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '1.4rem' }}>
-                    <h4 style={{ marginBottom: '0.7rem' }}>{t.topHubs}</h4>
-                    <div className="hub-list">
-                      {topHubs.length === 0 && <div className="empty-line">{t.noHubData}</div>}
-                      {topHubs.map((hub, idx) => (
-                        <div key={hub.id} className="hub-row">
-                          <div className="hub-rank">#{idx + 1}</div>
-                          <div className="hub-name">{hub.name}</div>
-                          <div className="hub-degree">{hub.degree} {t.links}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card">
-                  <div className="panel-header">
-                    <h3 style={{ margin: 0 }}>{t.riskFeed}</h3>
-                    <button className="mini-action" onClick={() => setActiveTab('alerts')}>{t.openAlerts}</button>
-                  </div>
-                  <div className="alerts-preview">
-                    {alertsPreview.length === 0 && (
-                      <div className="empty-line">{t.noAlertPreview}</div>
-                    )}
-                    {alertsPreview.map((alert, i) => (
-                      <div key={`${alert.entity_id}-${i}`} className="alert-row">
-                        <div>
-                          <div className="alert-title">{alert.alert_type}: {alert.entity_name}</div>
-                          <div className="alert-desc">{getAlertDescription(alert.description, lang)}</div>
-                        </div>
-                        <span className={`level-chip ${typeof alert.level === 'number' ? `level-${alert.level}` : String(alert.level).toLowerCase()}`}>{String(alert.level).toUpperCase()}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="quick-actions">
-                    <button className="quick-btn" onClick={() => setActiveTab('graph')}>{t.exploreNetwork}</button>
-                    <button className="quick-btn alt" onClick={() => setActiveTab('alerts')}>{t.runInvestigations}</button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ExecutiveDashboard
+              lang={lang}
+              loading={loading}
+              updatedAt={updatedAt}
+              totalEntities={totalEntities}
+              totalRelationships={totalRelationships}
+              avgDegree={avgDegree}
+              entityMix={entityMix}
+              topHubs={topHubs}
+              alertsPreview={alertsPreview}
+              onOpenGraph={() => setActiveTab('graph')}
+              onOpenAlerts={() => setActiveTab('alerts')}
+              onOpenCrawl={() => setActiveTab('crawl')}
+            />
           )}
 
           {activeTab === 'graph' && (

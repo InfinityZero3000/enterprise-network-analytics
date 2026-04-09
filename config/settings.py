@@ -86,6 +86,11 @@ class Settings(BaseSettings):
     vn_nbr_base_url: str = Field(
         "https://dangkykinhdoanh.gov.vn/vn/api", validation_alias="VN_NBR_BASE_URL"
     )
+    # Finnhub API — https://finnhub.io/
+    finnhub_api_key: str = Field("", validation_alias="FINNHUB_API_KEY")
+    # FMP API — https://site.financialmodelingprep.com/
+    fmp_api_key: str = Field("", validation_alias="FMP_API_KEY")
+    
     # Crawler tunables
     crawler_request_timeout: int = Field(30, validation_alias="CRAWLER_REQUEST_TIMEOUT")
     crawler_max_retries: int = Field(3, validation_alias="CRAWLER_MAX_RETRIES")

@@ -45,15 +45,16 @@ export default function Settings({ lang }: SettingsProps) {
     localStorage.setItem('app-ai-openai-key', openaiApiKey);
     
     try {
-      const response = await updateAiSettings({
-        gemini_api_key: geminiApiKey,
-        gemini_model: geminiModel,
-        groq_api_key: groqApiKey,
-        groq_model: groqModel,
-        openrouter_api_key: openrouterApiKey,
-        openrouter_model: openrouterModel,
-        openai_api_key: openaiApiKey
-      });
+      const settingsPayload: Record<string, string> = {};
+      if (geminiApiKey.trim()) settingsPayload.gemini_api_key = geminiApiKey.trim();
+      if (geminiModel.trim()) settingsPayload.gemini_model = geminiModel.trim();
+      if (groqApiKey.trim()) settingsPayload.groq_api_key = groqApiKey.trim();
+      if (groqModel.trim()) settingsPayload.groq_model = groqModel.trim();
+      if (openrouterApiKey.trim()) settingsPayload.openrouter_api_key = openrouterApiKey.trim();
+      if (openrouterModel.trim()) settingsPayload.openrouter_model = openrouterModel.trim();
+      if (openaiApiKey.trim()) settingsPayload.openai_api_key = openaiApiKey.trim();
+
+      const response = await updateAiSettings(settingsPayload);
 
       const groqStatus = response?.groq_validation;
       if (groqApiKey.trim() && groqStatus && groqStatus.ok === false) {

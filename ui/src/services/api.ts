@@ -249,10 +249,17 @@ export const saveInvestigationSnapshot = async (
 };
 
 export const askAi = async (question: string, pageContext?: string) => {
-  const response = await apiClient.post('/ai/ask', {
-    question,
-    page_context: pageContext,
-  });
+  const response = await apiClient.post(
+    '/ai/ask',
+    {
+      question,
+      page_context: pageContext,
+    },
+    {
+      // AI responses can take longer than regular API calls.
+      timeout: 90000,
+    },
+  );
   return response.data;
 };
 

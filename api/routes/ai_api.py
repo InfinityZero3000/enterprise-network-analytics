@@ -49,7 +49,10 @@ _embedding: GraphEmbedding | None = None
 def _normalize_text(value: str | None) -> str | None:
     if value is None:
         return None
-    return value.strip()
+    text = value.strip()
+    # Treat empty strings as "not provided" so saving UI settings does not
+    # accidentally wipe existing provider keys.
+    return text if text else None
 
 
 def _validate_groq_key(api_key: str, model: str) -> tuple[bool, str | None]:
@@ -122,10 +125,26 @@ def update_ai_settings(req: AISettingsRequest):
     if gemini_model is not None:
         settings.gemini_model = gemini_model
         cache_data["GEMINI_MODEL"] = gemini_model
-    if groq_api_key is not None:
-        settings.groq_api_key = groq_api_key
-        cache_data["GROQ_API_KEY"] = groq_api_key
-    if groq_model is not None:
+    previous_groq_key = settings.groq_api_key
+    previous_groq_model = settings.groq_model
+
+    requested_groq_key = groq_api_key if groq_api_key is not None else None
+    requested_groq_model = groq_model if groq_model is not None else settings.groq_model
+
+    groq_validation = {"ok": False, "error": None}
+    if requested_groq_key is not None:
+        ok, err = _validate_groq_key(requested_groq_key, requested_groq_model)
+        groq_validation = {"ok": ok, "error": err}
+        if ok:
+            settings.groq_api_key = requested_groq_key
+            cache_data["GROQ_API_KEY"] = requested_groq_key
+            settings.groq_model = requested_groq_model
+            cache_data["GROQ_MODEL"] = requested_groq_model
+        else:
+            # Preserve the previous working key/model when validation fails.
+            settings.groq_api_key = previous_groq_key
+            settings.groq_model = previous_groq_model
+    elif groq_model is not None:
         settings.groq_model = groq_model
         cache_data["GROQ_MODEL"] = groq_model
     if openrouter_api_key is not None:
@@ -158,8 +177,7 @@ def update_ai_settings(req: AISettingsRequest):
         "ollama": True,
     }
 
-    groq_validation = {"ok": False, "error": None}
-    if settings.groq_api_key:
+    if requested_groq_key is None and settings.groq_api_key:
         ok, err = _validate_groq_key(settings.groq_api_key, settings.groq_model)
         groq_validation = {"ok": ok, "error": err}
 

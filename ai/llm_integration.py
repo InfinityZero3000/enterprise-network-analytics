@@ -2,6 +2,7 @@
 LLM Integration — Q&A tự nhiên trên mạng lưới doanh nghiệp (OpenAI + Ollama fallback)
 """
 import re
+import time
 from loguru import logger
 from config.settings import settings
 from config.neo4j_config import Neo4jConnection
@@ -27,7 +28,8 @@ def _get_gemini_client():
         return OpenAI(
             api_key=settings.gemini_api_key,
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-            timeout=12.0,
+            timeout=8.0,
+            max_retries=0,
         )
     except Exception:
         return None
@@ -36,7 +38,7 @@ def _get_gemini_client():
 def _get_openai_client():
     try:
         from openai import OpenAI
-        return OpenAI(api_key=settings.openai_api_key, timeout=12.0)
+        return OpenAI(api_key=settings.openai_api_key, timeout=8.0, max_retries=0)
     except Exception:
         return None
 
@@ -44,7 +46,12 @@ def _get_openai_client():
 def _get_groq_client():
     try:
         from openai import OpenAI
-        return OpenAI(api_key=settings.groq_api_key, base_url="https://api.groq.com/openai/v1", timeout=12.0)
+        return OpenAI(
+            api_key=settings.groq_api_key,
+            base_url="https://api.groq.com/openai/v1",
+            timeout=8.0,
+            max_retries=0,
+        )
     except Exception:
         return None
 
@@ -55,7 +62,8 @@ def _get_openrouter_client():
         return OpenAI(
             api_key=settings.openrouter_api_key,
             base_url=settings.openrouter_base_url,
-            timeout=12.0,
+            timeout=8.0,
+            max_retries=0,
         )
     except Exception:
         return None
@@ -64,7 +72,7 @@ def _get_openrouter_client():
 def _get_ollama_client():
     try:
         from openai import OpenAI
-        return OpenAI(base_url=settings.ollama_base_url, api_key="ollama", timeout=12.0)
+        return OpenAI(base_url=settings.ollama_base_url, api_key="ollama", timeout=6.0, max_retries=0)
     except Exception:
         return None
 
@@ -115,6 +123,33 @@ class EnterpriseNetworkLLM:
         self._openai_client = _get_openai_client()
         self._ollama_client = _get_ollama_client()
         self._embedding = None
+        self._top_connected_cache: list[dict] = []
+        self._top_connected_cache_ts: float = 0.0
+
+    def _retrieve_top_connected_entities(self, limit: int = 12, ttl_seconds: int = 180) -> list[dict]:
+        now = time.time()
+        if self._top_connected_cache and (now - self._top_connected_cache_ts) < ttl_seconds:
+            return self._top_connected_cache[:limit]
+
+        # Aggregates from RELATIONSHIP edges to avoid expensive text scan over
+        # all Entity nodes for each unframed AI question.
+        cypher = """
+        MATCH (e:Entity)-[:RELATIONSHIP]-()
+        WITH e, count(*) AS degree
+        RETURN e.node_id AS node_id,
+               coalesce(e.name, e.full_name, e.address, e.node_id) AS display_name,
+               labels(e) AS labels,
+               coalesce(e.pagerank_score, 0.0) AS pagerank,
+               degree
+        ORDER BY degree DESC
+        LIMIT $limit
+        """
+        with Neo4jConnection.session() as s:
+            rows = [dict(r) for r in s.run(cypher, limit=max(limit, 30))]
+
+        self._top_connected_cache = rows
+        self._top_connected_cache_ts = now
+        return rows[:limit]
 
     def _get_embedding(self):
         if self._embedding is not None:
@@ -202,8 +237,10 @@ class EnterpriseNetworkLLM:
         pinned_node_ids: list[str] | None = None,
     ) -> str:
         keywords = self._extract_keywords(question)
-        entities = self._retrieve_entities_by_keywords(keywords, limit=12)
         pinned_node_ids = pinned_node_ids or []
+        # For unframed questions, only use top connected nodes to keep latency
+        # bounded and avoid full graph text scans.
+        entities = [] if pinned_node_ids else self._retrieve_top_connected_entities(limit=12)
 
         pinned_entities = self._retrieve_entities_by_node_ids(pinned_node_ids)
         for pe in pinned_entities:
@@ -236,10 +273,12 @@ class EnterpriseNetworkLLM:
         if pinned_node_ids:
             lines.append(f"Pinned frame node ids ({len(pinned_node_ids)}): {pinned_node_ids[:80]}")
         lines.append(f"Keywords: {keywords}")
+        if not pinned_node_ids:
+            lines.append("Retrieval mode: top connected nodes (no global text scan).")
         lines.append(f"Matched entities ({len(entities)}):")
         for e in entities[:10]:
             lines.append(
-                f"- {e.get('display_name')} | id={e.get('node_id')} | labels={e.get('labels')} | pagerank={round(float(e.get('pagerank', 0.0)), 6)}"
+                f"- {e.get('display_name')} | id={e.get('node_id')} | labels={e.get('labels')} | degree={e.get('degree', 0)} | pagerank={round(float(e.get('pagerank', 0.0)), 6)}"
             )
 
         lines.append(f"Relationship snippets ({len(rels)}):")
@@ -264,8 +303,9 @@ class EnterpriseNetworkLLM:
         pinned_node_ids: list[str] | None = None,
     ) -> dict:
         keywords = self._extract_keywords(question)
-        entities = self._retrieve_entities_by_keywords(keywords, limit=12)
         pinned_node_ids = pinned_node_ids or []
+        # Unframed: always use top connected nodes only (fast and stable).
+        entities = [] if pinned_node_ids else self._retrieve_top_connected_entities(limit=12)
 
         pinned_entities = self._retrieve_entities_by_node_ids(pinned_node_ids)
         for pe in pinned_entities:

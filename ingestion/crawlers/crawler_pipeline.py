@@ -23,6 +23,7 @@ from ingestion.crawlers.gleif import GleifCrawler
 from ingestion.crawlers.openownership import OpenOwnershipCrawler
 from ingestion.crawlers.worldbank import WorldBankCrawler
 from ingestion.crawlers.vietnam_nbr import VietnamNBRCrawler
+from ingestion.crawlers.crawl4ai_company_pages import Crawl4AICompanyPagesCrawler
 from ingestion.kafka_producer import EnterpriseProducer
 
 
@@ -71,6 +72,9 @@ class CrawlerPipeline:
         "openownership",
         "worldbank",
         "vietnam_nbr",
+        "crawl4ai_company_pages",
+        "yfinance",
+        "finnhub",
     ]
 
     def __init__(self, publish_to_kafka: bool = True) -> None:
@@ -120,6 +124,31 @@ class CrawlerPipeline:
                 "keywords": opts.get("keywords", ["cong ty", "corporation"]),
                 "mst_list": opts.get("mst_list", None),
                 "max_pages": opts.get("max_pages", 3),
+            })
+        if source == "crawl4ai_company_pages":
+            c = Crawl4AICompanyPagesCrawler()
+            return c, opts.get("crawl_kwargs", {
+                "cmc_pages": opts.get("cmc_pages", 2),
+                "max_companies": opts.get("max_companies", 80),
+                "fetch_profiles": opts.get("fetch_profiles", True),
+                "extra_company_urls": opts.get("extra_company_urls", []),
+            })
+        if source == "yfinance":
+            # Optional dependency source: import lazily to avoid breaking API
+            # startup when yfinance is not installed in container runtime.
+            from ingestion.crawlers.yfinance_crawler import YFinanceCrawler
+
+            c = YFinanceCrawler()
+            return c, opts.get("crawl_kwargs", {
+                "symbols": opts.get("symbols", ["AAPL", "VFS", "MSFT", "NVDA", "TSLA"]),
+            })
+        if source == "finnhub":
+            # Optional dependency source: import lazily to keep core API healthy.
+            from ingestion.crawlers.finnhub_crawler import FinnhubCrawler
+
+            c = FinnhubCrawler()
+            return c, opts.get("crawl_kwargs", {
+                "symbols": opts.get("symbols", ["AAPL", "MSFT", "NVDA"]),
             })
         raise ValueError(f"Unknown crawler source: {source}")
 
