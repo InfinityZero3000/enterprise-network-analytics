@@ -50,3 +50,72 @@ Distinguished from standard Vector Similarity RAG architectures, this system imp
 Standardized against modern Anti-Money Laundering (AML) and Know Your Customer (KYC) risk assessment methodologies:
 * **Seed Risk:** Deterministic identification of base entities against international blacklists, Politically Exposed Persons (PEPs) databases, and sanctioned registries.
 * **Risk Propagation:** Stochastic risk scores propagate and systematically decay as they traverse child nodes in the graph topology. For instance, a subsidiary definitively tied to a sanctioned parent entity mathematically inherits linked infected risk constraints.
+
+---
+
+## Technology Stack
+
+The platform is built on a modern, highly scalable data engineering and machine learning architecture:
+
+### 1. Data Engineering & Storage
+* **Graph Database:** Neo4j (Enterprise Graph Data Science logic)
+* **Big Data Processing:** Apache Spark (PySpark) & Delta Lake
+* **Streaming & Messaging:** Apache Kafka (Confluent ecosystem)
+* **Object Storage:** MinIO (S3-compatible data lake)
+* **Orchestration:** Apache Airflow
+
+### 2. Backend & Artificial Intelligence
+* **API Framework:** FastAPI (Python 3.11+, Async architectures)
+* **Machine Learning Tracking:** MLflow
+* **Generative AI Providers:** Native integration with OpenAI, Google Gemini, and Groq LLMs via custom GraphRAG implementations.
+
+### 3. Frontend & Visualization
+* **Core Framework:** React 18, TypeScript, Vite
+* **Graph Rendering:** D3.js via `react-force-graph-2d` (hardware-accelerated WebGL/Canvas layout engines)
+* **Styling:** Modern CSS (Tailwind concepts and raw custom properties)
+
+---
+
+## Getting Started (How to Run)
+
+The application ecosystem is fully dockerized for isolated, reproducible deployments.
+
+### Prerequisites
+* Docker Engine & Docker Compose (v2+)
+* Minimum OS Requirements: Linux/macOS or Windows (WSL2), 8GB+ RAM recommended.
+
+### Quick Start Deployment
+
+**1. Clone the repository and navigate to the project directory:**
+```bash
+git clone https://github.com/InfinityZero3000/enterprise-network-analytics.git
+cd enterprise-network-analytics
+```
+
+**2. Initialize environmental configurations:**
+```bash
+cp .env.example .env
+# Edit .env with your specific API Keys (Gemini, Groq, OpenAI) if utilizing the AI Assistant.
+```
+
+**3. Launch the full data infrastructure and backend API:**
+Using the provided multi-container setup via Docker Compose:
+```bash
+bash scripts/start.sh
+# Alternatively: docker compose up -d
+```
+
+**4. Start the Frontend Web UI:**
+In a separate terminal, navigate to the `ui` directory and start the Vite development server:
+```bash
+cd ui
+npm install
+npm run dev
+```
+
+### Accessing the Platform
+Once initialized, the various graphical interfaces can be accessed at:
+* **Web UI (Graph Explorer):** `http://localhost:5173`
+* **API Backend (FastAPI Swagger):** `http://localhost:8000/docs`
+* **Neo4j Browser:** `http://localhost:7474`
+* **Kafka UI:** `http://localhost:8080`
