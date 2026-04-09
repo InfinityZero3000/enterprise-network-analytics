@@ -2,6 +2,7 @@ import { useRef, useEffect, useMemo, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { translations, type Lang } from '../i18n';
 import {
+  getResolvedApiRoot,
   getBlastRadius,
   getInvestigationSubgraph,
   getShortestRiskPath,
@@ -114,7 +115,7 @@ export default function GraphExplorer({
   };
 
   const fetchGraphData = (type = 'default') => {
-    const baseUrl = localStorage.getItem('app-api-url') || 'http://localhost:8000';
+    const baseUrl = getResolvedApiRoot();
     let url = `${baseUrl}/api/v1/graph/network?limit=250`;
     if (type === 'pagerank') {
       url += "&order_by=pagerank";

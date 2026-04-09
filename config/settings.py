@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     neo4j_uri: str = Field("bolt://localhost:7687", validation_alias="NEO4J_URI")
     neo4j_user: str = Field("neo4j", validation_alias="NEO4J_USER")
     neo4j_password: str = Field("ena_password", validation_alias="NEO4J_PASSWORD")
+    neo4j_auto_dedup_entity_node_id: bool = Field(True, validation_alias="NEO4J_AUTO_DEDUP_ENTITY_NODE_ID")
+    neo4j_dedup_batch_size: int = Field(100, validation_alias="NEO4J_DEDUP_BATCH_SIZE")
 
     # ── Kafka ─────────────────────────────────────
     kafka_bootstrap_servers: str = Field("localhost:9092", validation_alias="KAFKA_BOOTSTRAP_SERVERS")
@@ -96,11 +98,22 @@ class Settings(BaseSettings):
     api_host: str = Field("0.0.0.0", validation_alias="API_HOST")
     api_port: int = Field(8000, validation_alias="API_PORT")
     api_key: str = Field("", validation_alias="API_KEY")  # optional; empty = auth disabled
+    api_root_path: str = Field("", validation_alias="API_ROOT_PATH")
+
+    # ── CORS / Gateway ───────────────────────────
+    # Comma-separated list. Example:
+    # CORS_ALLOW_ORIGINS=https://your-ui.vercel.app,https://admin.example.com
+    cors_allow_origins: str = Field("*", validation_alias="CORS_ALLOW_ORIGINS")
+    cors_allow_origin_regex: str = Field("", validation_alias="CORS_ALLOW_ORIGIN_REGEX")
+    cors_allow_credentials: bool = Field(False, validation_alias="CORS_ALLOW_CREDENTIALS")
+    cors_allow_methods: str = Field("*", validation_alias="CORS_ALLOW_METHODS")
+    cors_allow_headers: str = Field("*", validation_alias="CORS_ALLOW_HEADERS")
 
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,
         populate_by_name=True,
+        extra="ignore",
     )
 
 
