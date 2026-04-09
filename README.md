@@ -82,6 +82,7 @@ The application ecosystem is fully dockerized for isolated, reproducible deploym
 
 ### Prerequisites
 * Docker Engine & Docker Compose (v2+)
+* Node.js + npm (for Web UI development server)
 * Minimum OS Requirements: Linux/macOS or Windows (WSL2), 8GB+ RAM recommended.
 
 ### Quick Start Deployment
@@ -92,26 +93,26 @@ git clone https://github.com/InfinityZero3000/enterprise-network-analytics.git
 cd enterprise-network-analytics
 ```
 
-**2. Initialize environmental configurations:**
-```bash
-cp .env.example .env
-# Edit .env with your specific API Keys (Gemini, Groq, OpenAI) if utilizing the AI Assistant.
-```
-
-**3. Launch the full data infrastructure and backend API:**
-Using the provided multi-container setup via Docker Compose:
+**2. Start everything with one command:**
 ```bash
 bash scripts/start.sh
-# Alternatively: docker compose up -d
 ```
 
-**4. Start the Frontend Web UI:**
-In a separate terminal, navigate to the `ui` directory and start the Vite development server:
+The startup script now includes first-run checks to help new users:
+* Verifies required commands (`docker`, `npm`)
+* Verifies Docker daemon is running
+* Auto-creates `.env` from `.env.example` if missing
+* Auto-installs UI dependencies in `ui/` when `node_modules` is missing
+* Starts Docker services and Web UI dev server automatically
+
+**3. Check service status (optional):**
 ```bash
-cd ui
-npm install
-npm run dev
+docker compose ps
+tail -f ui/ui.log
 ```
+
+**4. Configure AI keys (optional):**
+If you want to use the AI Assistant, open `.env` and set keys such as Gemini/Groq/OpenAI.
 
 ### Accessing the Platform
 Once initialized, the various graphical interfaces can be accessed at:
@@ -119,6 +120,11 @@ Once initialized, the various graphical interfaces can be accessed at:
 * **API Backend (FastAPI Swagger):** `http://localhost:8000/docs`
 * **Neo4j Browser:** `http://localhost:7474`
 * **Kafka UI:** `http://localhost:8080`
+
+### Stop All Services
+```bash
+bash scripts/stop.sh
+```
 
 ## Real Data Pipeline (API + Crawl4AI)
 
