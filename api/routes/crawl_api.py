@@ -32,7 +32,7 @@ class CrawlRequest(BaseModel):
         default=["vietnam_nbr"],
         description=(
             "Danh sách nguồn cần crawl. Các giá trị hợp lệ: "
-            "opencorporates, opensanctions, gleif, openownership, worldbank, vietnam_nbr"
+            "opencorporates, opensanctions, gleif, openownership, worldbank, vietnam_nbr, crawl4ai_company_pages, yfinance, finnhub"
         ),
     )
     parallel: bool = Field(default=False, description="Chạy song song các crawlers")
@@ -159,6 +159,33 @@ def list_sources():
                 "data": ["vn_companies", "legal_representatives"],
                 "requires_api_key": False,
                 "env_var": None,
+            },
+            {
+                "id": "crawl4ai_company_pages",
+                "name": "Crawl4AI Company Pages (CompaniesMarketCap + optional URLs)",
+                "url": "https://companiesmarketcap.com",
+                "license": "Public web pages (respect robots.txt and terms)",
+                "data": ["listed_companies", "market_cap_snapshots"],
+                "requires_api_key": False,
+                "env_var": None,
+            },
+            {
+                "id": "yfinance",
+                "name": "Yahoo Finance (via yfinance)",
+                "url": "https://finance.yahoo.com",
+                "license": "Public financial data",
+                "data": ["company_profiles", "financials", "executives"],
+                "requires_api_key": False,
+                "env_var": None,
+            },
+            {
+                "id": "finnhub",
+                "name": "Finnhub Stock API",
+                "url": "https://finnhub.io",
+                "license": "Free tier available",
+                "data": ["company_profiles", "basic_financials"],
+                "requires_api_key": True,
+                "env_var": "FINNHUB_API_KEY",
             },
         ]
     }

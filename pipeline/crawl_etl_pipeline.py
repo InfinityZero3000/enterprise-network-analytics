@@ -109,7 +109,10 @@ class CrawlETLReport:
 class CrawlETLPipeline:
     """End-to-end ETL pipeline for crawler data into Neo4j."""
 
-    FREE_SOURCES = ["gleif", "openownership", "worldbank", "vietnam_nbr"]
+    # Keep defaults on stable sources. Some public endpoints can be geo-blocked
+    # or intermittently unavailable (e.g. 502/404), but remain available as
+    # optional manual sources via API/UI.
+    FREE_SOURCES = ["gleif", "crawl4ai_company_pages", "yfinance", "openownership"]
 
     def __init__(self) -> None:
         self._crawler = CrawlerPipeline(publish_to_kafka=False)

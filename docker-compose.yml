@@ -181,7 +181,90 @@ services:
         limits:
           memory: 512M
 
+
+  postgres-airflow:
+    image: postgres:15
+    container_name: ena-postgres-airflow
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow_password
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_airflow_data:/var/lib/postgresql/data
+    networks:
+      - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  airflow-init:
+    image: apache/airflow:2.8.2
+    container_name: ena-airflow-init
+    depends_on:
+      - postgres-airflow
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow_password@postgres-airflow/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      _AIRFLOW_DB_UPGRADE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin_password
+    command: version
+    networks:
+      - ena-net
+
+  airflow-webserver:
+    image: apache/airflow:2.8.2
+    container_name: ena-airflow-webserver
+    depends_on:
+      - postgres-airflow
+      - airflow-init
+    ports:
+      - "8086:8080"
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow_password@postgres-airflow/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth"
+      # Volumes mapping
+      AIRFLOW__CORE__DAGS_FOLDER: "/opt/airflow/dags"
+    volumes:
+      - ./pipeline/orchestration/airflow_dags:/opt/airflow/dags
+      - ./.venv/lib/python3.12/site-packages:/home/airflow/.local/lib/python3.12/site-packages:ro # Share python packages if possible, but actually we should just map codebase
+      - .:/opt/airflow/plugins
+      - ./.env:/opt/airflow/.env
+    networks:
+      - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  airflow-scheduler:
+    image: apache/airflow:2.8.2
+    container_name: ena-airflow-scheduler
+    depends_on:
+      - postgres-airflow
+      - airflow-init
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow_password@postgres-airflow/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_FOLDER: "/opt/airflow/dags"
+    volumes:
+      - ./pipeline/orchestration/airflow_dags:/opt/airflow/dags
+      - .:/opt/airflow/plugins
+      - ./.env:/opt/airflow/.env
+    networks:
+      - ena-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
 volumes:
+  postgres_airflow_data:
   neo4j_data:
   neo4j_logs:
   mlflow_data:

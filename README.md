@@ -119,3 +119,51 @@ Once initialized, the various graphical interfaces can be accessed at:
 * **API Backend (FastAPI Swagger):** `http://localhost:8000/docs`
 * **Neo4j Browser:** `http://localhost:7474`
 * **Kafka UI:** `http://localhost:8080`
+
+## Real Data Pipeline (API + Crawl4AI)
+
+When some API providers are unstable, run a practical hybrid pipeline with:
+
+1. `gleif` (stable public LEI API)
+2. `crawl4ai_company_pages` (crawl public aggregate company pages)
+
+### Run synchronous crawl only
+
+```bash
+curl -X POST http://localhost:8000/api/v1/crawl/run/sync \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "sources": ["gleif", "crawl4ai_company_pages"],
+    "parallel": true,
+    "source_options": {
+      "gleif": {"countries": ["VN", "SG", "HK"], "max_pages": 3},
+      "crawl4ai_company_pages": {"cmc_pages": 2, "max_companies": 80, "fetch_profiles": true}
+    }
+  }'
+```
+
+### Run full ETL (crawl -> quality gate -> Neo4j)
+
+```bash
+curl -X POST http://localhost:8000/api/v1/crawl/etl/run/sync \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "sources": ["gleif", "crawl4ai_company_pages"],
+    "parallel": true,
+    "dry_run": false,
+    "source_options": {
+      "gleif": {"countries": ["VN", "SG", "HK"], "max_pages": 3},
+      "crawl4ai_company_pages": {"cmc_pages": 2, "max_companies": 80, "fetch_profiles": true}
+    }
+  }'
+```
+
+### Storage and visualization outputs
+
+* Raw crawl payloads are uploaded to MinIO bucket `ena-raw/<source>/...`.
+* Crawl4AI snapshot is written locally to:
+  * `dataset/crawl4ai/latest_companies.ndjson`
+  * `dataset/crawl4ai/latest_companies.pretty.json`
+  * `dataset/crawl4ai/latest_summary.json`
+* Cleaned entities/relationships are loaded to Neo4j via ETL route.
+* In UI, open `Crawl Manager` to run sources and inspect pipeline KPIs/history.
