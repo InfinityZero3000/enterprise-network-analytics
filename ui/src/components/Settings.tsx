@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { translations, type Lang } from '../i18n';
-import { updateAiSettings } from '../services/api';
+import { getResolvedApiRoot, updateAiSettings } from '../services/api';
 
 interface SettingsProps {
   lang: Lang;
@@ -9,7 +9,7 @@ interface SettingsProps {
 export default function Settings({ lang }: SettingsProps) {
   const t = translations[lang];
 
-  const [apiUrl, setApiUrl] = useState(() => localStorage.getItem('app-api-url') || 'http://localhost:8000');
+  const [apiUrl, setApiUrl] = useState(() => localStorage.getItem('app-api-url') || getResolvedApiRoot());
   const [nodeRepulsion, setNodeRepulsion] = useState(() => Number(localStorage.getItem('app-graph-repulsion')) || 150);
   const [linkDistance, setLinkDistance] = useState(() => Number(localStorage.getItem('app-graph-link-dist')) || 30);
   const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('app-ai-gemini-key') || '');

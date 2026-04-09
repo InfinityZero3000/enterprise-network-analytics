@@ -1,18 +1,43 @@
 import axios from 'axios';
 
-const DEFAULT_API_ROOT = 'http://localhost:8000';
+const ENV_API_ROOT = (import.meta.env.VITE_API_ROOT as string | undefined) || '';
 
 const normalizeApiRoot = (value?: string | null) => {
   const raw = (value || '').trim();
   if (!raw) {
-    return DEFAULT_API_ROOT;
+    return '';
   }
   return raw.replace(/\/+$/, '');
 };
 
+export const DEFAULT_API_ROOT = normalizeApiRoot(ENV_API_ROOT) || (import.meta.env.PROD ? '' : 'http://localhost:8000');
+
+const isLocalHostRuntime = () => {
+  if (typeof window === 'undefined') {
+    return !import.meta.env.PROD;
+  }
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1';
+};
+
+export const getResolvedApiRoot = () => {
+  const stored = normalizeApiRoot(localStorage.getItem('app-api-url'));
+  if (stored) {
+    return stored;
+  }
+  if (DEFAULT_API_ROOT) {
+    return DEFAULT_API_ROOT;
+  }
+  // Local testing fallback, even when no VITE_API_ROOT is provided.
+  if (isLocalHostRuntime()) {
+    return 'http://localhost:8000';
+  }
+  return '';
+};
+
 const getApiBaseUrl = () => {
-  const url = normalizeApiRoot(localStorage.getItem('app-api-url'));
-  return `${url}/api/v1`;
+  const root = getResolvedApiRoot();
+  return root ? `${root}/api/v1` : '/api/v1';
 };
 
 const apiClient = axios.create({
@@ -38,7 +63,7 @@ apiClient.interceptors.response.use(
     }
 
     const storedRoot = normalizeApiRoot(localStorage.getItem('app-api-url'));
-    if (storedRoot === DEFAULT_API_ROOT) {
+    if (!DEFAULT_API_ROOT || storedRoot === DEFAULT_API_ROOT) {
       return Promise.reject(error);
     }
 
@@ -272,6 +297,9 @@ export const listCrawlSources = async (): Promise<CrawlSourcesResponse> => {
     const response = await apiClient.get('/crawl/sources');
     return toResponse(response.data);
   } catch {
+    if (!DEFAULT_API_ROOT) {
+      throw new Error('API root is not configured. Set app-api-url or VITE_API_ROOT.');
+    }
     const fallback = await axios.get(`${DEFAULT_API_ROOT}/api/v1/crawl/sources`, {
       timeout: 10000,
       headers: { 'Content-Type': 'application/json' },

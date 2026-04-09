@@ -3,6 +3,7 @@ Neo4j Driver + Context Manager
 """
 from contextlib import contextmanager
 from neo4j import GraphDatabase, Driver, Session
+from neo4j.exceptions import Neo4jError
 from loguru import logger
 from config.settings import settings
 
@@ -62,7 +63,94 @@ def setup_constraints_and_indexes():
         "CREATE INDEX person_name IF NOT EXISTS FOR (p:Person) ON (p.full_name)",
         "CREATE INDEX address_text IF NOT EXISTS FOR (a:Address) ON (a.address)",
     ]
+
+    def _auto_deduplicate_entity_node_ids(session: Session) -> tuple[int, int]:
+        """Merge duplicate Entity nodes sharing the same node_id.
+
+        Returns:
+            tuple[int, int]: (duplicate_groups_before, merged_groups)
+        """
+        count_query = """
+        MATCH (e:Entity)
+        WHERE e.node_id IS NOT NULL
+        WITH e.node_id AS node_id, count(*) AS cnt
+        WHERE cnt > 1
+        RETURN count(*) AS groups
+        """
+        groups_before = int(session.run(count_query).single()["groups"])
+        if groups_before == 0:
+            return 0, 0
+
+        if settings.neo4j_auto_dedup_entity_node_id:
+            dedup_query = """
+            MATCH (e:Entity)
+            WHERE e.node_id IS NOT NULL
+            WITH e.node_id AS node_id, collect(e) AS nodes, count(*) AS cnt
+            WHERE cnt > 1
+            WITH nodes
+            LIMIT $batch_size
+            CALL apoc.refactor.mergeNodes(
+                nodes,
+                {
+                    properties: 'discard',
+                    mergeRels: true,
+                    preserveExistingSelfRels: false,
+                    singleElementAsArray: false
+                }
+            ) YIELD node
+            RETURN count(*) AS merged
+            """
+
+            total_merged = 0
+            while True:
+                merged = int(session.run(dedup_query, batch_size=settings.neo4j_dedup_batch_size).single()["merged"])
+                total_merged += merged
+                if merged == 0:
+                    break
+            return groups_before, total_merged
+
+        return groups_before, 0
+
+    def _duplicate_entity_examples(session: Session, limit: int = 3) -> list[dict]:
+        query = """
+        MATCH (e:Entity)
+        WHERE e.node_id IS NOT NULL
+        WITH e.node_id AS node_id, collect(id(e)) AS ids, count(*) AS cnt
+        WHERE cnt > 1
+        RETURN node_id, ids[0..5] AS sample_node_internal_ids, cnt
+        ORDER BY cnt DESC
+        LIMIT $limit
+        """
+        return [dict(r) for r in session.run(query, limit=limit)]
+
     with Neo4jConnection.session() as session:
+        try:
+            groups_before, merged_groups = _auto_deduplicate_entity_node_ids(session)
+            if groups_before > 0:
+                if merged_groups > 0:
+                    logger.info(
+                        "Auto-deduplicated Entity.node_id groups before schema setup: "
+                        f"before={groups_before}, merged={merged_groups}."
+                    )
+                else:
+                    logger.warning(
+                        "Duplicate Entity.node_id groups detected but auto-dedup is disabled. "
+                        f"groups={groups_before}."
+                    )
+        except Neo4jError as e:
+            logger.warning(f"Skip auto dedup Entity.node_id due to Neo4j/APOC error: {e}")
+
         for stmt in statements:
-            session.run(stmt)
-    logger.info("Neo4j constraints và indexes đã được thiết lập.")
+            try:
+                session.run(stmt)
+            except Neo4jError as e:
+                # Keep startup healthy when legacy data violates uniqueness.
+                if "CREATE CONSTRAINT entity_id" in stmt and "ConstraintCreationFailed" in str(e):
+                    examples = _duplicate_entity_examples(session)
+                    logger.warning(
+                        "Skip Entity(node_id) uniqueness constraint because duplicates exist. "
+                        f"Sample duplicates: {examples}"
+                    )
+                    continue
+                raise
+    logger.info("Neo4j constraints và indexes đã được thiết lập (bỏ qua ràng buộc trùng nếu có).")

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getGlobalStats, getFraudAlerts } from './services/api'
+import { getGlobalStats, getFraudAlerts, getResolvedApiRoot, DEFAULT_API_ROOT } from './services/api'
 import GraphExplorer from './components/GraphExplorer'
 import AlertsRisk from './components/AlertsRisk'
 import AIAssistant from './components/AIAssistant'
@@ -26,16 +26,6 @@ type FraudAlert = {
   level: number | string
   description: string
 }
-
-const DEFAULT_API_ROOT = 'http://localhost:8000';
-
-const resolveApiRoot = () => {
-  const raw = (localStorage.getItem('app-api-url') || '').trim();
-  if (!raw) {
-    return DEFAULT_API_ROOT;
-  }
-  return raw.replace(/\/+$/, '');
-};
 
 function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -81,7 +71,7 @@ function App() {
         return { statsResult, networkResult, alertsResult };
       };
 
-      const configuredRoot = resolveApiRoot();
+      const configuredRoot = getResolvedApiRoot();
       let { statsResult, networkResult, alertsResult } = await fetchDashboardWithRoot(configuredRoot);
 
       const allFailed =
@@ -89,7 +79,7 @@ function App() {
         networkResult.status === 'rejected' &&
         alertsResult.status === 'rejected';
 
-      if (allFailed && configuredRoot !== DEFAULT_API_ROOT) {
+      if (allFailed && DEFAULT_API_ROOT && configuredRoot !== DEFAULT_API_ROOT) {
         ({ statsResult, networkResult, alertsResult } = await fetchDashboardWithRoot(DEFAULT_API_ROOT));
       }
 
