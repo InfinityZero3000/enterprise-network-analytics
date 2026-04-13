@@ -7,6 +7,10 @@ const normalizeApiRoot = (value?: string | null) => {
   if (!raw) {
     return '';
   }
+  // Ignore placeholder value shipped in .env/.env.example for local runs.
+  if (raw.includes('your-api-domain.example.com')) {
+    return '';
+  }
   return raw.replace(/\/+$/, '');
 };
 
@@ -76,6 +80,8 @@ apiClient.interceptors.response.use(
 export const getFraudAlerts = async (limit?: number) => {
   const response = await apiClient.get('/analytics/fraud/alerts', {
     params: limit ? { limit } : {},
+    // Fraud rules query can be slower than default API timeout on large graphs.
+    timeout: 30000,
   });
   return response.data;
 };
@@ -326,6 +332,51 @@ export type CrawlEtlRunPayload = {
   parallel: boolean;
   dry_run: boolean;
   source_options?: Record<string, Record<string, unknown>>;
+};
+
+export type CrawlJobStartResponse = {
+  status: string;
+  message: string;
+  sources: string[];
+  job_id?: string;
+};
+
+export type CrawlJobFlowStep = {
+  key: string;
+  label: string;
+  state: 'pending' | 'running' | 'done' | 'failed';
+};
+
+export type CrawlJobStatusResponse = {
+  job_id: string;
+  mode: 'crawl' | 'etl' | string;
+  status: 'queued' | 'running' | 'success' | 'failed' | string;
+  stage: string;
+  progress: number;
+  sources: string[];
+  parallel: boolean;
+  dry_run: boolean;
+  error?: string | null;
+  started_at: string;
+  updated_at: string;
+  finished_at?: string | null;
+  flow: CrawlJobFlowStep[];
+  result_summary?: unknown;
+};
+
+export const runCrawlAsync = async (payload: CrawlRunPayload): Promise<CrawlJobStartResponse> => {
+  const response = await apiClient.post('/crawl/run', payload);
+  return response.data as CrawlJobStartResponse;
+};
+
+export const runCrawlEtlAsync = async (payload: CrawlEtlRunPayload): Promise<CrawlJobStartResponse> => {
+  const response = await apiClient.post('/crawl/etl/run', payload);
+  return response.data as CrawlJobStartResponse;
+};
+
+export const getCrawlJobStatus = async (jobId: string): Promise<CrawlJobStatusResponse> => {
+  const response = await apiClient.get(`/crawl/jobs/${jobId}`);
+  return response.data as CrawlJobStatusResponse;
 };
 
 export const runCrawlSync = async (payload: CrawlRunPayload) => {

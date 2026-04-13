@@ -3,6 +3,38 @@
   "raw_count": 200,
   "companies": [
     {
+      "company_id": "GLEIF-984500EF96U9CDED7X56",
+      "name": "CÔNG TY TNHH VIETNAM CONCENTRIX SERVICES",
+      "tax_code": null,
+      "company_type": "llc",
+      "status": "active",
+      "country": "VN",
+      "address": "Tầng 4, 5, 6 và 7, QTSC Building 1, Lô 34, đường số 14, Công viên phần mềm Quang Trung, Thành phố Hồ Chí Minh, VN-SG, 71700, VN",
+      "founded_date": null,
+      "is_listed": false,
+      "_source": "gleif",
+      "_lei": "984500EF96U9CDED7X56",
+      "_lei_status": "ISSUED",
+      "_lei_next_renewal": "2027-04-09T17:02:32Z",
+      "_gleif_entity_category": "GENERAL"
+    },
+    {
+      "company_id": "GLEIF-254900SFRDFV8O2B5M36",
+      "name": "Công Ty TNHH Quản Lý Quỹ SSI",
+      "tax_code": null,
+      "company_type": "llc",
+      "status": "active",
+      "country": "VN",
+      "address": "Tầng 5, Ha Noi, VN-HN, 11024, VN",
+      "founded_date": null,
+      "is_listed": false,
+      "_source": "gleif",
+      "_lei": "254900SFRDFV8O2B5M36",
+      "_lei_status": "ISSUED",
+      "_lei_next_renewal": "2027-04-09T14:07:45Z",
+      "_gleif_entity_category": "GENERAL"
+    },
+    {
       "company_id": "GLEIF-984500G44075AAI69F15",
       "name": "CÔNG TY TNHH LUXSHARE - ICT (NGHỆ AN)",
       "tax_code": null,
@@ -147,22 +179,6 @@
       "_gleif_entity_category": "GENERAL"
     },
     {
-      "company_id": "GLEIF-9845007ECB09EB82A048",
-      "name": "CÔNG TY TNHH WISTRON INFOCOMM (VIỆT NAM)",
-      "tax_code": null,
-      "company_type": "llc",
-      "status": "active",
-      "country": "VN",
-      "address": "Lô CN09 và CN10, KCN hỗ trợ Đồng Văn III giai đoạn II, Phường , Phường Duy Hà, Tỉnh Ninh Bình, Việt Nam, Duy Hà, VN-18, 18000, VN",
-      "founded_date": null,
-      "is_listed": false,
-      "_source": "gleif",
-      "_lei": "9845007ECB09EB82A048",
-      "_lei_status": "ISSUED",
-      "_lei_next_renewal": "2026-12-19T19:27:35Z",
-      "_gleif_entity_category": "GENERAL"
-    },
-    {
       "company_id": "GLEIF-984500ECB9B2CL669036",
       "name": "CÔNG TY TNHH WISTRON TECHNOLOGY (VIỆT NAM)",
       "tax_code": null,
@@ -174,6 +190,22 @@
       "is_listed": false,
       "_source": "gleif",
       "_lei": "984500ECB9B2CL669036",
+      "_lei_status": "ISSUED",
+      "_lei_next_renewal": "2026-12-19T19:27:35Z",
+      "_gleif_entity_category": "GENERAL"
+    },
+    {
+      "company_id": "GLEIF-9845007ECB09EB82A048",
+      "name": "CÔNG TY TNHH WISTRON INFOCOMM (VIỆT NAM)",
+      "tax_code": null,
+      "company_type": "llc",
+      "status": "active",
+      "country": "VN",
+      "address": "Lô CN09 và CN10, KCN hỗ trợ Đồng Văn III giai đoạn II, Phường , Phường Duy Hà, Tỉnh Ninh Bình, Việt Nam, Duy Hà, VN-18, 18000, VN",
+      "founded_date": null,
+      "is_listed": false,
+      "_source": "gleif",
+      "_lei": "9845007ECB09EB82A048",
       "_lei_status": "ISSUED",
       "_lei_next_renewal": "2026-12-19T19:27:35Z",
       "_gleif_entity_category": "GENERAL"
@@ -1791,7 +1823,7 @@
       "_source": "gleif",
       "_lei": "25490018TJOT0URN8E57",
       "_lei_status": "ISSUED",
-      "_lei_next_renewal": "2026-04-24T12:59:44Z",
+      "_lei_next_renewal": "2027-04-24T12:59:44Z",
       "_gleif_entity_category": "GENERAL"
     },
     {
@@ -3043,22 +3075,6 @@
       "_gleif_entity_category": "GENERAL"
     },
     {
-      "company_id": "GLEIF-549300KDUEM5IEU30490",
-      "name": "Công ty TNHH Archer Daniels Midland VN",
-      "tax_code": null,
-      "company_type": "llc",
-      "status": "active",
-      "country": "VN",
-      "address": "Khu phố 1B, Thuận An, VN-57, 75400, VN",
-      "founded_date": null,
-      "is_listed": false,
-      "_source": "gleif",
-      "_lei": "549300KDUEM5IEU30490",
-      "_lei_status": "ISSUED",
-      "_lei_next_renewal": "2026-10-04T18:01:00Z",
-      "_gleif_entity_category": "GENERAL"
-    },
-    {
       "company_id": "GLEIF-549300ORS3UQCHOWSV67",
       "name": "CÔNG TY TNHH GUYOMARC'H-VCN",
       "tax_code": null,
@@ -3072,6 +3088,22 @@
       "_lei": "549300ORS3UQCHOWSV67",
       "_lei_status": "ISSUED",
       "_lei_next_renewal": "2026-10-04T00:00:00Z",
+      "_gleif_entity_category": "GENERAL"
+    },
+    {
+      "company_id": "GLEIF-549300KDUEM5IEU30490",
+      "name": "Công ty TNHH Archer Daniels Midland VN",
+      "tax_code": null,
+      "company_type": "llc",
+      "status": "active",
+      "country": "VN",
+      "address": "Khu phố 1B, Thuận An, VN-57, 75400, VN",
+      "founded_date": null,
+      "is_listed": false,
+      "_source": "gleif",
+      "_lei": "549300KDUEM5IEU30490",
+      "_lei_status": "ISSUED",
+      "_lei_next_renewal": "2026-10-04T18:01:00Z",
       "_gleif_entity_category": "GENERAL"
     },
     {
@@ -3169,40 +3201,21 @@
       "_lei_status": "ISSUED",
       "_lei_next_renewal": "2026-09-17T14:34:07Z",
       "_gleif_entity_category": "GENERAL"
-    },
-    {
-      "company_id": "GLEIF-5493005UILTPG78BRV08",
-      "name": "SIAM CITY CEMENT (VIETNAM) LIMITED",
-      "tax_code": null,
-      "company_type": "llc",
-      "status": "active",
-      "country": "VN",
-      "address": "11 DOAN VAN BO STREET, DISTRICT 4, HO CHI MINH CITY, VIETNAM, HO CHI MINH, VN-SG, VN",
-      "founded_date": null,
-      "is_listed": false,
-      "_source": "gleif",
-      "_lei": "5493005UILTPG78BRV08",
-      "_lei_status": "LAPSED",
-      "_lei_next_renewal": "2021-10-09T00:00:00Z",
-      "_gleif_entity_category": "GENERAL"
-    },
-    {
-      "company_id": "GLEIF-25490008Y63EPI9XB932",
-      "name": "Ngân hàng TNHH Một thành viên Public Việt Nam",
-      "tax_code": null,
-      "company_type": "llc",
-      "status": "active",
-      "country": "VN",
-      "address": "Tầng 1, tầng 10 và tầng 11, Hà Nội, VN-HN, 10000, VN",
-      "founded_date": null,
-      "is_listed": false,
-      "_source": "gleif",
-      "_lei": "25490008Y63EPI9XB932",
-      "_lei_status": "ISSUED",
-      "_lei_next_renewal": "2026-10-12T18:08:51Z",
-      "_gleif_entity_category": "GENERAL"
     }
   ],
   "persons": [],
-  "relationships": []
+  "relationships": [],
+  "errors": [],
+  "summary": {
+    "source": "gleif",
+    "companies": 200,
+    "persons": 0,
+    "relationships": 0,
+    "raw_count": 200,
+    "errors": 0,
+    "duration_s": 152.65,
+    "minio_keys": [
+      "gleif/2026/04/13/lei_companies_200.ndjson"
+    ]
+  }
 }

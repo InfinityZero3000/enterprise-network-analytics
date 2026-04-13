@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  getCrawlJobStatus,
   listCrawlSources,
-  runCrawlEtlSync,
-  runCrawlSync,
+  runCrawlAsync,
+  runCrawlEtlAsync,
+  type CrawlJobStatusResponse,
   type CrawlSource,
 } from '../services/api';
 import { translations, type Lang } from '../i18n';
@@ -193,6 +195,8 @@ export default function CrawlManager({ lang }: Props) {
   const [dryRun, setDryRun] = useState(false);
   const [loadingSources, setLoadingSources] = useState(true);
   const [runningMode, setRunningMode] = useState<CrawlRunMode | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [activeJob, setActiveJob] = useState<CrawlJobStatusResponse | null>(null);
   const [statusText, setStatusText] = useState('');
   const [resultText, setResultText] = useState('');
   const [history, setHistory] = useState<RunRecord[]>(() => readHistory());
@@ -257,6 +261,71 @@ export default function CrawlManager({ lang }: Props) {
     localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history.slice(0, MAX_HISTORY_ITEMS)));
   }, [history]);
 
+  useEffect(() => {
+    if (!activeJobId) {
+      return;
+    }
+
+    let mounted = true;
+
+    const poll = async () => {
+      try {
+        const job = await getCrawlJobStatus(activeJobId);
+        if (!mounted) {
+          return;
+        }
+        setActiveJob(job);
+
+        if (job.status === 'success') {
+          const mode: CrawlRunMode = job.mode === 'etl' ? 'etl' : 'crawl';
+          const summary = job.result_summary ?? {};
+          setResultText(JSON.stringify(summary, null, 2));
+          const record = parseRunRecord(
+            mode,
+            {
+              sources: job.sources,
+              parallel: job.parallel,
+              dryRun: job.dry_run,
+            },
+            summary,
+          );
+          setHistory((prev) => [record, ...prev].slice(0, MAX_HISTORY_ITEMS));
+          setStatusText(mode === 'etl' ? (job.dry_run ? t.crawlDryRunSuccess : t.crawlEtlSuccess) : t.crawlRunSuccess);
+          setRunningMode(null);
+          setActiveJobId(null);
+          return;
+        }
+
+        if (job.status === 'failed') {
+          const mode: CrawlRunMode = job.mode === 'etl' ? 'etl' : 'crawl';
+          const fallback = mode === 'etl' ? t.crawlEtlFailed : t.crawlRunFailed;
+          setStatusText(`${fallback}: ${job.error || t.crawlUnknownError}`);
+          if (job.result_summary) {
+            setResultText(JSON.stringify(job.result_summary, null, 2));
+          }
+          setRunningMode(null);
+          setActiveJobId(null);
+        }
+      } catch (err: unknown) {
+        if (!mounted) {
+          return;
+        }
+        const message = err instanceof Error ? err.message : t.crawlUnknownError;
+        setStatusText(`${t.crawlStatus}: ${message}`);
+        setRunningMode(null);
+        setActiveJobId(null);
+      }
+    };
+
+    poll();
+    const timer = window.setInterval(poll, 1500);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(timer);
+    };
+  }, [activeJobId, t]);
+
   const toggleSource = (sourceId: string) => {
     setSelected((prev) => {
       if (prev.includes(sourceId)) {
@@ -282,20 +351,21 @@ export default function CrawlManager({ lang }: Props) {
     setRunningMode('crawl');
     setStatusText(t.crawlRunning);
     setResultText('');
+    setActiveJob(null);
 
     try {
-      const result = await runCrawlSync({
+      const response = await runCrawlAsync({
         sources: selected,
         parallel,
       });
-      setStatusText(t.crawlRunSuccess);
-      setResultText(JSON.stringify(result, null, 2));
-      const record = parseRunRecord('crawl', { sources: selected, parallel, dryRun }, result);
-      setHistory((prev) => [record, ...prev].slice(0, MAX_HISTORY_ITEMS));
+      if (!response.job_id) {
+        throw new Error('Missing crawl job id from server');
+      }
+      setStatusText(response.message || t.crawlRunning);
+      setActiveJobId(response.job_id);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : t.crawlUnknownError;
       setStatusText(`${t.crawlRunFailed}: ${message}`);
-    } finally {
       setRunningMode(null);
     }
   };
@@ -308,21 +378,22 @@ export default function CrawlManager({ lang }: Props) {
     setRunningMode('etl');
     setStatusText(t.crawlEtlRunning);
     setResultText('');
+    setActiveJob(null);
 
     try {
-      const result = await runCrawlEtlSync({
+      const response = await runCrawlEtlAsync({
         sources: selected,
         parallel,
         dry_run: dryRun,
       });
-      setStatusText(dryRun ? t.crawlDryRunSuccess : t.crawlEtlSuccess);
-      setResultText(JSON.stringify(result, null, 2));
-      const record = parseRunRecord('etl', { sources: selected, parallel, dryRun }, result);
-      setHistory((prev) => [record, ...prev].slice(0, MAX_HISTORY_ITEMS));
+      if (!response.job_id) {
+        throw new Error('Missing crawl etl job id from server');
+      }
+      setStatusText(response.message || t.crawlEtlRunning);
+      setActiveJobId(response.job_id);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : t.crawlUnknownError;
       setStatusText(`${t.crawlEtlFailed}: ${message}`);
-    } finally {
       setRunningMode(null);
     }
   };
@@ -575,6 +646,28 @@ export default function CrawlManager({ lang }: Props) {
       <div className="card">
         <div className="card-title" style={{ marginBottom: '0.6rem' }}>{t.crawlStatus}</div>
         <div style={{ color: 'var(--text-primary)', marginBottom: '0.8rem' }}>{statusText || t.crawlIdle}</div>
+        {!!activeJob && (
+          <div className="crawl-live-progress">
+            <div className="crawl-progress-head">
+              <span>{lang === 'vi' ? 'Tiến trình hiện tại' : 'Current progress'}</span>
+              <strong>{Math.max(0, Math.min(100, Number(activeJob.progress || 0)))}%</strong>
+            </div>
+            <div className="crawl-progress-track">
+              <div
+                className="crawl-progress-fill"
+                style={{ width: `${Math.max(2, Math.min(100, Number(activeJob.progress || 0)))}%` }}
+              />
+            </div>
+            <div className="crawl-flow-list">
+              {activeJob.flow?.map((step) => (
+                <div key={`${activeJob.job_id}-${step.key}`} className="crawl-flow-item">
+                  <span>{step.label}</span>
+                  <span className={`crawl-flow-state ${step.state}`}>{step.state.toUpperCase()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.45rem' }}>{t.crawlLastReport}</div>
         <pre
           style={{

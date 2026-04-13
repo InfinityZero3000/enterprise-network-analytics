@@ -8,7 +8,10 @@ Endpoints:
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from threading import Lock
 from typing import Annotated
+from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Body
 from pydantic import BaseModel, Field
@@ -23,6 +26,8 @@ router = APIRouter()
 _pipeline = CrawlerPipeline(publish_to_kafka=True)
 _sanctions = OpenSanctionsCrawler()
 _etl = CrawlETLPipeline()
+_job_lock = Lock()
+_jobs: dict[str, dict] = {}
 
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -54,6 +59,30 @@ class CrawlRunningResponse(BaseModel):
     status: str
     message: str
     sources: list[str]
+    job_id: str | None = None
+
+
+class CrawlJobFlowStep(BaseModel):
+    key: str
+    label: str
+    state: str
+
+
+class CrawlJobStatusResponse(BaseModel):
+    job_id: str
+    mode: str
+    status: str
+    stage: str
+    progress: int
+    sources: list[str]
+    parallel: bool
+    dry_run: bool
+    error: str | None = None
+    started_at: str
+    updated_at: str
+    finished_at: str | None = None
+    flow: list[CrawlJobFlowStep]
+    result_summary: dict | None = None
 
 
 class CrawlETLRequest(BaseModel):
@@ -72,30 +101,139 @@ class CrawlETLRequest(BaseModel):
     )
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _build_flow(mode: str) -> list[dict]:
+    if mode == "etl":
+        return [
+            {"key": "queued", "label": "Queued", "state": "running"},
+            {"key": "crawl", "label": "Crawling sources", "state": "pending"},
+            {"key": "quality_gate", "label": "Quality gate", "state": "pending"},
+            {"key": "load_neo4j", "label": "Load to Neo4j", "state": "pending"},
+            {"key": "completed", "label": "Completed", "state": "pending"},
+        ]
+    return [
+        {"key": "queued", "label": "Queued", "state": "running"},
+        {"key": "crawl", "label": "Crawling sources", "state": "pending"},
+        {"key": "publish", "label": "Publish to Kafka", "state": "pending"},
+        {"key": "completed", "label": "Completed", "state": "pending"},
+    ]
+
+
+def _create_job(mode: str, sources: list[str], parallel: bool, dry_run: bool) -> str:
+    job_id = uuid4().hex
+    now = _now_iso()
+    with _job_lock:
+        _jobs[job_id] = {
+            "job_id": job_id,
+            "mode": mode,
+            "status": "queued",
+            "stage": "queued",
+            "progress": 5,
+            "sources": sources,
+            "parallel": parallel,
+            "dry_run": dry_run,
+            "error": None,
+            "started_at": now,
+            "updated_at": now,
+            "finished_at": None,
+            "flow": _build_flow(mode),
+            "result_summary": None,
+        }
+    return job_id
+
+
+def _update_job(job_id: str, **changes) -> None:
+    with _job_lock:
+        job = _jobs.get(job_id)
+        if not job:
+            return
+        job.update(changes)
+        job["updated_at"] = _now_iso()
+
+
+def _set_flow_state(job_id: str, active_key: str, progress: int) -> None:
+    with _job_lock:
+        job = _jobs.get(job_id)
+        if not job:
+            return
+        for step in job["flow"]:
+            if step["key"] == active_key:
+                step["state"] = "running"
+                break
+            if step["state"] != "done":
+                step["state"] = "done"
+        job["stage"] = active_key
+        job["progress"] = progress
+        job["updated_at"] = _now_iso()
+
+
+def _finish_job(job_id: str, success: bool, result_summary: dict | None = None, error: str | None = None) -> None:
+    with _job_lock:
+        job = _jobs.get(job_id)
+        if not job:
+            return
+        if success:
+            for step in job["flow"]:
+                step["state"] = "done"
+            job["status"] = "success"
+            job["stage"] = "completed"
+            job["progress"] = 100
+            job["result_summary"] = result_summary
+            job["error"] = None
+        else:
+            current = job.get("stage")
+            for step in job["flow"]:
+                if step["key"] == current:
+                    step["state"] = "failed"
+                    break
+            job["status"] = "failed"
+            job["error"] = error
+        now = _now_iso()
+        job["finished_at"] = now
+        job["updated_at"] = now
+
+
 # ─── Background task ──────────────────────────────────────────────────────────
 
-def _run_crawl_background(req: CrawlRequest) -> None:
+def _run_crawl_background(job_id: str, req: CrawlRequest) -> None:
     try:
+        _update_job(job_id, status="running")
+        _set_flow_state(job_id, "crawl", 35)
         report = _pipeline.run(
             sources=req.sources,
             source_options=req.source_options,
             parallel=req.parallel,
         )
-        logger.info(f"[crawl-bg] Finished: {report.summary()}")
+        _set_flow_state(job_id, "publish", 75)
+        summary = report.summary()
+        _finish_job(job_id, success=True, result_summary=summary)
+        logger.info(f"[crawl-bg] Finished: {summary}")
     except Exception as e:
+        _finish_job(job_id, success=False, error=str(e))
         logger.error(f"[crawl-bg] Error: {e}")
 
 
-def _run_etl_background(req: CrawlETLRequest) -> None:
+def _run_etl_background(job_id: str, req: CrawlETLRequest) -> None:
     try:
+        _update_job(job_id, status="running")
+        _set_flow_state(job_id, "crawl", 25)
         report = _etl.run(
             sources=req.sources,
             source_options=req.source_options,
             parallel=req.parallel,
             dry_run=req.dry_run,
         )
-        logger.info(f"[crawl-etl-bg] Finished: {report.summary()}")
+        _set_flow_state(job_id, "quality_gate", 60)
+        if not req.dry_run:
+            _set_flow_state(job_id, "load_neo4j", 85)
+        summary = report.summary()
+        _finish_job(job_id, success=True, result_summary=summary)
+        logger.info(f"[crawl-etl-bg] Finished: {summary}")
     except Exception as e:
+        _finish_job(job_id, success=False, error=str(e))
         logger.error(f"[crawl-etl-bg] Error: {e}")
 
 
@@ -209,11 +347,13 @@ def run_crawlers(req: CrawlRequest, background_tasks: BackgroundTasks):
             status_code=422,
             detail=f"Unknown sources: {invalid}. Valid: {sorted(valid)}",
         )
-    background_tasks.add_task(_run_crawl_background, req)
+    job_id = _create_job(mode="crawl", sources=req.sources, parallel=req.parallel, dry_run=False)
+    background_tasks.add_task(_run_crawl_background, job_id, req)
     return CrawlRunningResponse(
         status="accepted",
         message=f"Crawl đã được lên lịch cho {len(req.sources)} nguồn. Kết quả sẽ được upload lên MinIO và publish lên Kafka.",
         sources=req.sources,
+        job_id=job_id,
     )
 
 
@@ -236,7 +376,8 @@ def run_crawl_etl(req: CrawlETLRequest, background_tasks: BackgroundTasks):
             detail=f"Unknown sources: {invalid}. Valid: {sorted(valid)}",
         )
 
-    background_tasks.add_task(_run_etl_background, req)
+    job_id = _create_job(mode="etl", sources=req.sources, parallel=req.parallel, dry_run=req.dry_run)
+    background_tasks.add_task(_run_etl_background, job_id, req)
     return CrawlRunningResponse(
         status="accepted",
         message=(
@@ -244,7 +385,21 @@ def run_crawl_etl(req: CrawlETLRequest, background_tasks: BackgroundTasks):
             "Kiểm tra logs API để theo dõi tiến trình."
         ),
         sources=req.sources,
+        job_id=job_id,
     )
+
+
+@router.get(
+    "/jobs/{job_id}",
+    summary="Lấy trạng thái tiến trình crawl/etl",
+    response_model=CrawlJobStatusResponse,
+)
+def get_crawl_job_status(job_id: str):
+    with _job_lock:
+        job = _jobs.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail=f"Unknown crawl job: {job_id}")
+        return CrawlJobStatusResponse(**job)
 
 
 @router.post(

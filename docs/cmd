@@ -21,3 +21,16 @@ Dự án có mô-đun crawlers và luồng Kafka nằm trong (streaming_pipeline
 
 Sử dụng mô-đun llm_integration.py và graph_embedding.py.
 Cho phép người dùng query natural language vào Graph (Chat với Graph, hỏi đáp: "Cho tôi biết mối quan hệ rủi ro liên quan đến công ty X").
+
+
+crawl: .venv/bin/python scripts/crawl_gleif_sample.py --countries VN SG --max-pages 2 --fetch-relationships --output crawler_outputs/my_gleif_run.json
+import: .venv/bin/python scripts/load_crawl_json_to_neo4j.py --input crawler_outputs/my_gleif_run.json
+/home/zero3000/enterprise-network-analytics/.venv/bin/python /home/zero3000/enterprise-network-analytics/scripts/load_crawl_json_to_neo4j.py --input /home/zero3000/enterprise-network-analytics/crawler_outputs/my_gleif_run.json --dry-run
+
+
+Crawl dữ liệu từ nguồn ngoài lưu tạm raw vô minio
+Làm sạch/chuẩn hóa (ETL).
+Nạp vào Neo4j/Kafka/Delta.
+Chạy analytics/risk.
+Trả kết quả qua API/UI.
+

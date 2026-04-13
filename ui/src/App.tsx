@@ -57,7 +57,24 @@ function App() {
   const [graphSummary, setGraphSummary] = useState<{ nodes: number; links: number; hubs: string[] }>({ nodes: 0, links: 0, hubs: [] });
   const [alertsSummary, setAlertsSummary] = useState<{ count: number; topTypes: string[] }>({ count: 0, topTypes: [] });
   const [graphFrameContext, setGraphFrameContext] = useState('');
+  const [dashboardReloadKey, setDashboardReloadKey] = useState(0);
   const resizingRef = useRef(false);
+
+  useEffect(() => {
+    const tick = window.setInterval(() => {
+      setDashboardReloadKey((v) => v + 1);
+    }, 30000);
+
+    const onSettingsChanged = () => {
+      setDashboardReloadKey((v) => v + 1);
+    };
+
+    window.addEventListener('app-settings-changed', onSettingsChanged);
+    return () => {
+      window.clearInterval(tick);
+      window.removeEventListener('app-settings-changed', onSettingsChanged);
+    };
+  }, []);
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -128,7 +145,7 @@ function App() {
     };
 
     loadDashboard();
-  }, [lang]);
+  }, [lang, dashboardReloadKey]);
 
   useEffect(() => {
     localStorage.setItem('app-lang', lang);

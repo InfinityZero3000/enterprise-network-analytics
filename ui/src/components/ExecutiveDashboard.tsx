@@ -133,6 +133,8 @@ export default function ExecutiveDashboard({
       .slice(0, 6);
   }, [alertsPreview]);
 
+  const alertsPreviewCompact = useMemo(() => alertsPreview.slice(0, 3), [alertsPreview]);
+
   const crawlTrendData = useMemo(() => {
     try {
       const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
@@ -326,15 +328,18 @@ export default function ExecutiveDashboard({
             <button className="mini-action" onClick={onOpenAlerts}>{t.openAlerts}</button>
           </div>
           <div className="chart-wrap">
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={alertTypeData} margin={{ left: 10, right: 10, top: 8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
-                <XAxis dataKey="name" stroke="var(--text-secondary)" tick={{ fontSize: 11 }} interval={0} angle={-12} textAnchor="end" height={56} />
-                <YAxis stroke="var(--text-secondary)" tick={{ fontSize: 12 }} />
-                <Tooltip cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }} />
-                <Bar dataKey="score" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={32} />
-              </BarChart>
-            </ResponsiveContainer>
+            {alertTypeData.length === 0 && <div className="empty-line">{t.noAlertPreview}</div>}
+            {alertTypeData.length > 0 && (
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={alertTypeData} margin={{ left: 10, right: 10, top: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
+                  <XAxis dataKey="name" stroke="var(--text-secondary)" tick={{ fontSize: 11 }} interval={0} angle={-12} textAnchor="end" height={56} />
+                  <YAxis stroke="var(--text-secondary)" tick={{ fontSize: 12 }} />
+                  <Tooltip cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }} />
+                  <Bar dataKey="score" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={32} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -364,52 +369,6 @@ export default function ExecutiveDashboard({
                 </AreaChart>
               </ResponsiveContainer>
             )}
-          </div>
-        </div>
-      </div>
-
-      <div className="dashboard-pro-foot">
-        <div className="card">
-          <div className="panel-header">
-            <h3 style={{ margin: 0 }}>{t.dashboardIntelligenceBrief}</h3>
-          </div>
-          <div className="dashboard-insight-grid">
-            <div className="dashboard-insight-item">
-              <div className="dashboard-insight-label">{t.dashboardDensityLabel}</div>
-              <div className="dashboard-insight-value">{relationshipDensity}%</div>
-              <div className="dashboard-insight-sub">{t.dashboardDensityMeta}</div>
-            </div>
-            <div className="dashboard-insight-item">
-              <div className="dashboard-insight-label">{t.dashboardTopHubLabel}</div>
-              <div className="dashboard-insight-value">{topHubs[0]?.name || '--'}</div>
-              <div className="dashboard-insight-sub">{topHubs[0] ? `${topHubs[0].degree} ${t.links}` : t.noHubData}</div>
-            </div>
-            <div className="dashboard-insight-item">
-              <div className="dashboard-insight-label">{t.dashboardHotAlertLabel}</div>
-              <div className="dashboard-insight-value">{alertsPreview[0]?.alert_type || '--'}</div>
-              <div className="dashboard-insight-sub">{alertsPreview[0] ? alertsPreview[0].entity_name : t.noAlertPreview}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="panel-header">
-            <h3 style={{ margin: 0 }}>{t.riskFeed}</h3>
-            <button className="mini-action" onClick={onOpenAlerts}>{t.runInvestigations}</button>
-          </div>
-          <div className="alerts-preview">
-            {alertsPreview.length === 0 && <div className="empty-line">{t.noAlertPreview}</div>}
-            {alertsPreview.map((alert, i) => (
-              <div key={`${alert.entity_id}-${i}`} className="alert-row">
-                <div>
-                  <div className="alert-title">{alert.alert_type}: {alert.entity_name}</div>
-                  <div className="alert-desc">{getAlertDescription(alert.description, lang)}</div>
-                </div>
-                <span className={`level-chip ${typeof alert.level === 'number' ? `level-${alert.level}` : String(alert.level).toLowerCase()}`}>
-                  {String(alert.level).toUpperCase()}
-                </span>
-              </div>
-            ))}
           </div>
         </div>
       </div>
@@ -496,6 +455,55 @@ export default function ExecutiveDashboard({
           <p className="risk-scoring-subtitle" style={{ marginTop: '0.4rem' }}>
             {t.riskRadarFootnote}
           </p>
+        </div>
+      </div>
+
+      <div className="dashboard-pro-foot">
+        <div className="card">
+          <div className="panel-header">
+            <h3 style={{ margin: 0 }}>{t.dashboardIntelligenceBrief}</h3>
+          </div>
+          <div className="dashboard-insight-grid">
+            <div className="dashboard-insight-item">
+              <div className="dashboard-insight-label">{t.dashboardDensityLabel}</div>
+              <div className="dashboard-insight-value">{relationshipDensity}%</div>
+              <div className="dashboard-insight-sub">{t.dashboardDensityMeta}</div>
+            </div>
+            <div className="dashboard-insight-item">
+              <div className="dashboard-insight-label">{t.dashboardTopHubLabel}</div>
+              <div className="dashboard-insight-value">{topHubs[0]?.name || '--'}</div>
+              <div className="dashboard-insight-sub">{topHubs[0] ? `${topHubs[0].degree} ${t.links}` : t.noHubData}</div>
+            </div>
+            <div className="dashboard-insight-item">
+              <div className="dashboard-insight-label">{t.dashboardHotAlertLabel}</div>
+              <div className="dashboard-insight-value">{alertsPreviewCompact[0]?.alert_type || '--'}</div>
+              <div className="dashboard-insight-sub">{alertsPreviewCompact[0] ? alertsPreviewCompact[0].entity_name : t.noAlertPreview}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="panel-header">
+            <h3 style={{ margin: 0 }}>{t.riskFeed}</h3>
+            <button className="mini-action" onClick={onOpenAlerts}>{t.runInvestigations}</button>
+          </div>
+          <div className="alerts-preview alerts-preview-compact">
+            {alertsPreviewCompact.length === 0 && <div className="empty-line">{t.noAlertPreview}</div>}
+            {alertsPreviewCompact.map((alert, i) => (
+              <div key={`${alert.entity_id}-${i}`} className="alert-row">
+                <div>
+                  <div className="alert-title">{alert.alert_type}: {alert.entity_name}</div>
+                  <div className="alert-desc">{getAlertDescription(alert.description, lang)}</div>
+                </div>
+                <span className={`level-chip ${typeof alert.level === 'number' ? `level-${alert.level}` : String(alert.level).toLowerCase()}`}>
+                  {String(alert.level).toUpperCase()}
+                </span>
+              </div>
+            ))}
+            {alertsPreview.length > alertsPreviewCompact.length && (
+              <div className="empty-line">+{alertsPreview.length - alertsPreviewCompact.length} {t.navAlerts}</div>
+            )}
+          </div>
         </div>
       </div>
     </div>
